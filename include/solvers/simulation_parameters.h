@@ -26,7 +26,6 @@
 #include <core/parameters.h>
 #include <core/parameters_cfd_dem.h>
 #include <core/parameters_multiphysics.h>
-
 #include <solvers/analytical_solutions.h>
 #include <solvers/initial_conditions.h>
 #include <solvers/source_terms.h>
@@ -142,6 +141,27 @@ public:
         throw std::logic_error(
           "Inconsistency in .prm!\n with free surface = true\n use: number of fluids = 2");
       }
+
+    // Create output_folder if does not exist, for the first process only
+    if (mkdir(simulation_control.output_folder.c_str(), 0777) == -1)
+      {
+        if (errno != EEXIST)
+          {
+            // if error other than "already exists"
+            std::cerr << "Could not create Output folder:  " << strerror(errno)
+                      << std::endl;
+          }
+      }
+    else
+      std::cout << "Output folder created: " << simulation_control.output_folder
+                << std::endl;
+
+    // TODO create only for the first process, if multiprocess : add condition
+    // if (Utilities::MPI::this_mpi_process(this->mpi_communicator) == 0)
+
+    // TODO make it CI compatible!
+    // std::filesystem::create_directory(simulation_control.output_folder.c_str());
+    // should do the trick but it need a newer c++ version.
   }
 };
 

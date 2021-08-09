@@ -1459,10 +1459,13 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
                   const unsigned int component_i =
                     this->fe->system_to_component_index(i).first;
                   unsigned int global_index_overwrite = local_dof_indices[i];
+                  bool dof_is_inside=(support_points[local_dof_indices[i]]-particles[ib_particle_id].position).norm()<particles[ib_particle_id].radius;
+                  bool use_ib_for_pressure=dof_is_inside&&component_i==dim&&this->simulation_parameters.particlesParameters
+                                                                                    .assemble_navier_stokes_inside == false;
 
 
                   // Check if the DOfs is owned and if it's not a hanging node.
-                  if (component_i < dim &&
+                  if (((component_i < dim) || use_ib_for_pressure ) &&
                       this->locally_owned_dofs.is_element(
                         global_index_overwrite) &&
                       ib_done[global_index_overwrite].first == false)
@@ -1620,6 +1623,8 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
                         particles[ib_particle_id],
                         support_points[local_dof_indices[i]],
                         component_i);
+                      if(use_ib_for_pressure)
+                          v_ib=0;
 
                       for (unsigned int k = 0; k < ib_coef.size(); ++k)
                         {
@@ -1940,6 +1945,7 @@ GLSSharpNavierStokesSolver<dim>::assemble_local_system_rhs(
 
   if (cell_is_cut)
     return;
+
 
   scratch_data.reinit(cell,
                       this->evaluation_point,

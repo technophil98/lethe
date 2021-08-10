@@ -397,7 +397,8 @@ namespace Parameters
       gmres,
       bicgstab,
       amg,
-      direct
+      direct,
+      hybrid
     };
     SolverType solver;
 

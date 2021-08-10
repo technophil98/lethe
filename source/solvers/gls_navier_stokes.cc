@@ -703,6 +703,12 @@ GLSNavierStokesSolver<dim>::solve_linear_system(const bool initial_step,
                         absolute_residual,
                         relative_residual,
                         renewed_matrix);
+  else if (this->simulation_parameters.linear_solver.solver ==
+           Parameters::LinearSolver::SolverType::hybrid)
+      solve_system_hybrid(initial_step,
+                          absolute_residual,
+                          relative_residual,
+                          renewed_matrix);
   else
     throw(std::runtime_error("This solver is not allowed"));
 }
@@ -816,8 +822,7 @@ GLSNavierStokesSolver<dim>::solve_system_GMRES(const bool   initial_step,
 
   while (success == false and iter < max_iter)
     {
-      try
-        {
+
           auto &system_rhs          = this->system_rhs;
           auto &nonzero_constraints = this->nonzero_constraints;
 
@@ -843,10 +848,10 @@ GLSNavierStokesSolver<dim>::solve_system_GMRES(const bool   initial_step,
             true);
 
           TrilinosWrappers::SolverGMRES::AdditionalData solver_parameters(
-            false,
+            true,
             this->simulation_parameters.linear_solver.max_krylov_vectors);
-
-
+          try
+          {
           TrilinosWrappers::SolverGMRES solver(solver_control,
                                                solver_parameters);
 
@@ -876,6 +881,10 @@ GLSNavierStokesSolver<dim>::solve_system_GMRES(const bool   initial_step,
         }
       catch (std::exception &e)
         {
+          constraints_used.distribute(completely_distributed_solution);
+          auto &newton_update = this->newton_update;
+          newton_update       = completely_distributed_solution;
+          success             = true;
           current_ilu_preconditioner_fill_level += 1;
           this->pcout
             << " GMRES solver failed! Trying with a higher preconditioner fill level. New fill = "
@@ -928,7 +937,9 @@ GLSNavierStokesSolver<dim>::solve_system_BiCGStab(
             linear_solver_tolerance,
             true,
             true);
-          TrilinosWrappers::SolverBicgstab solver(solver_control);
+          TrilinosWrappers::SolverBicgstab::AdditionalData solver_parameters(
+                    true);
+          TrilinosWrappers::SolverBicgstab solver(solver_control,solver_parameters);
 
           if (renewed_matrix || !ilu_preconditioner)
             setup_ILU(current_ilu_preconditioner_fill_level);
@@ -948,9 +959,9 @@ GLSNavierStokesSolver<dim>::solve_system_BiCGStab(
                   << "  -Iterative solver took : " << solver_control.last_step()
                   << " steps " << std::endl;
               }
-            constraints_used.distribute(completely_distributed_solution);
-            this->newton_update = completely_distributed_solution;
           }
+          constraints_used.distribute(completely_distributed_solution);
+          this->newton_update = completely_distributed_solution;
           success = true;
         }
       catch (std::exception &e)
@@ -1008,7 +1019,7 @@ GLSNavierStokesSolver<dim>::solve_system_AMG(const bool   initial_step,
             true);
 
           TrilinosWrappers::SolverGMRES::AdditionalData solver_parameters(
-            false,
+            true,
             this->simulation_parameters.linear_solver.max_krylov_vectors);
 
           TrilinosWrappers::SolverGMRES solver(solver_control,
@@ -1083,6 +1094,168 @@ GLSNavierStokesSolver<dim>::solve_system_direct(const bool   initial_step,
   constraints_used.distribute(completely_distributed_solution);
   auto &newton_update = this->newton_update;
   newton_update       = completely_distributed_solution;
+}
+
+
+template <int dim>
+void
+GLSNavierStokesSolver<dim>::solve_system_hybrid(const bool   initial_step,
+                                             const double absolute_residual,
+                                             const double relative_residual,
+                                             const bool   renewed_matrix)
+{
+    const unsigned int max_iter = 3;
+    int                current_fill_level =
+            this->simulation_parameters.linear_solver.amg_precond_ilu_fill;
+    unsigned int iter    = 0;
+    bool         success = false;
+    while (success == false and iter < max_iter)
+    {
+        try
+        {
+            auto &system_rhs          = this->system_rhs;
+            auto &nonzero_constraints = this->nonzero_constraints;
+
+            const AffineConstraints<double> &constraints_used =
+                    initial_step ? nonzero_constraints : this->zero_constraints;
+
+            const double linear_solver_tolerance =
+                    std::max(relative_residual * system_rhs.l2_norm(),
+                             absolute_residual);
+            if (this->simulation_parameters.linear_solver.verbosity !=
+                Parameters::Verbosity::quiet)
+            {
+                this->pcout << "  -Tolerance of iterative solver is : "
+                            << linear_solver_tolerance << std::endl;
+            }
+            TrilinosWrappers::MPI::Vector completely_distributed_solution(
+                    this->locally_owned_dofs, this->mpi_communicator);
+
+            SolverControl solver_control(
+                    this->simulation_parameters.linear_solver.max_iterations,
+                    linear_solver_tolerance,
+                    true,
+                    true);
+
+            try
+            {
+                TrilinosWrappers::SolverGMRES::AdditionalData solver_parameters(
+                        true,
+                        this->simulation_parameters.linear_solver.max_krylov_vectors);
+                TrilinosWrappers::SolverGMRES solver(solver_control,
+                                                     solver_parameters);
+
+                if (renewed_matrix || !ilu_preconditioner)
+                    setup_ILU(current_fill_level);
+
+                {
+                    TimerOutput::Scope t(this->computing_timer, "solve_linear_system");
+
+                    solver.solve(system_matrix,
+                                 completely_distributed_solution,
+                                 system_rhs,
+                                 *ilu_preconditioner);
+
+                    if (this->simulation_parameters.linear_solver.verbosity !=
+                        Parameters::Verbosity::quiet)
+                    {
+                        this->pcout
+                                << "  -Iterative solver took : " << solver_control.last_step()
+                                << " steps " << std::endl;
+                    }
+                }
+                constraints_used.distribute(completely_distributed_solution);
+                auto &newton_update = this->newton_update;
+                newton_update       = completely_distributed_solution;
+                success             = true;
+                return;
+            }
+            catch(std::exception &e){
+                this->pcout
+                        << " The "<< iter +1 <<" try with GMRES solver failed. Restart where it crash  with BICGSTAB "<< std::endl;
+            };
+            try {
+                TrilinosWrappers::SolverBicgstab::AdditionalData solver_parameters(
+                        true);
+                TrilinosWrappers::SolverBicgstab solver(solver_control, solver_parameters);
+
+                if (renewed_matrix || !ilu_preconditioner)
+                    setup_ILU(current_fill_level);
+                {
+                    TimerOutput::Scope t(this->computing_timer, "solve_linear_system");
+
+                    solver.solve(system_matrix,
+                                 completely_distributed_solution,
+                                 system_rhs,
+                                 *ilu_preconditioner);
+
+                    if (this->simulation_parameters.linear_solver.verbosity !=
+                        Parameters::Verbosity::quiet) {
+                        this->pcout
+                                << "  -Iterative solver took : " << solver_control.last_step()
+                                << " steps " << std::endl;
+                    }
+                }
+                constraints_used.distribute(completely_distributed_solution);
+                auto &newton_update = this->newton_update;
+                newton_update       = completely_distributed_solution;
+                success = true;
+                return;
+            }
+            catch(std::exception &e){
+                this->pcout
+                        << " The "<< iter +1 <<" try with BICGSTAB solver failed. Restart where it crash  with AMG  "<< std::endl;
+            };
+
+            try {
+                TrilinosWrappers::SolverGMRES::AdditionalData solver_parameters(
+                        true,
+                        this->simulation_parameters.linear_solver.max_krylov_vectors);
+
+                TrilinosWrappers::SolverGMRES solver(solver_control,
+                                                     solver_parameters);
+
+                if (renewed_matrix || !amg_preconditioner)
+                    setup_AMG(current_fill_level);
+
+                {
+                    TimerOutput::Scope t(this->computing_timer, "solve_linear_system");
+
+                    solver.solve(system_matrix,
+                                 completely_distributed_solution,
+                                 system_rhs,
+                                 *amg_preconditioner);
+
+                    if (this->simulation_parameters.linear_solver.verbosity !=
+                        Parameters::Verbosity::quiet) {
+                        this->pcout
+                                << "  -Iterative solver took : " << solver_control.last_step()
+                                << " steps " << std::endl;
+                    }
+                }
+                constraints_used.distribute(completely_distributed_solution);
+                auto &newton_update = this->newton_update;
+                newton_update       = completely_distributed_solution;
+                success = true;
+                return;
+            }
+            catch (std::exception &e)
+            {
+                this->pcout
+                        << " The "<< iter +1 <<" try with AMG solver failed"<< std::endl;
+            }
+        }
+        catch (std::exception &e)
+        {
+            current_fill_level+= 1;
+            this->pcout
+                    << " hybride solver failed! Trying with a higher preconditioner fill level. New fill = "
+                    << current_fill_level << std::endl;
+            if (iter == max_iter - 1)
+                throw e;
+        }
+        iter += 1;
+    }
 }
 
 template <int dim>

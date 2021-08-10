@@ -759,9 +759,9 @@ namespace Parameters
       prm.declare_entry(
         "method",
         "gmres",
-        Patterns::Selection("gmres|bicgstab|amg|direct"),
+        Patterns::Selection("gmres|bicgstab|amg|direct|hybrid"),
         "The iterative solver for the linear system of equations. "
-        "Choices are <gmres|bicgstab|amg|tfqmr|direct>. gmres is a GMRES iterative "
+        "Choices are <gmres|bicgstab|amg|tfqmr|direct|hybrid>. gmres is a GMRES iterative "
         "solver "
         "with ILU preconditioning. bicgstab is a BICGSTAB iterative solver "
         "with ILU preconditioning. "
@@ -868,6 +868,8 @@ namespace Parameters
         solver = SolverType::bicgstab;
       else if (sv == "direct")
         solver = SolverType::direct;
+      else if (sv == "hybrid")
+          solver = SolverType::hybrid;
       else
         throw std::logic_error(
           "Error, invalid iterative solver type. Choices are amg, gmres, bicgstab or direct");

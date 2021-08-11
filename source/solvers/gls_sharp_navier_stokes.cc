@@ -1431,13 +1431,13 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
         {
           double sum_line = 0;
           fe_values.reinit(cell);
-
+          double volume=0;
           // Define the order of magnitude for the stencil.
           for (unsigned int qf = 0; qf < n_q_points; ++qf)
-            sum_line += fe_values.JxW(qf);
+              volume += fe_values.JxW(qf);
 
-          sum_line = sum_line / dt;
 
+          //sum_line = volume / dt;
 
           cell->get_dof_indices(local_dof_indices);
 
@@ -1463,6 +1463,10 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
                   bool use_ib_for_pressure=dof_is_inside&&component_i==dim&&this->simulation_parameters.particlesParameters
                                                                                     .assemble_navier_stokes_inside == false;
 
+                  if(component_i < dim)
+                      sum_line = volume / dt;
+                  else
+                      sum_line = 1./ (this->simulation_parameters.physical_properties.viscosity*std::pow(volume,1./dim));
 
                   // Check if the DOfs is owned and if it's not a hanging node.
                   if (((component_i < dim) || use_ib_for_pressure ) &&

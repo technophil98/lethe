@@ -247,6 +247,14 @@ private:
 
   /**
    * @brief
+   * Integrate the particle velocity and position based on the forces and
+   * torques and applies the next value to the particle.
+   */
+  void
+  particles_dem();
+
+  /**
+   * @brief
    * Store the solution of the particles dynamics parameters for integration.
    * Defines the table to store the history of each of the particles.
    */

@@ -848,7 +848,7 @@ GLSNavierStokesSolver<dim>::solve_system_GMRES(const bool   initial_step,
             true);
 
           TrilinosWrappers::SolverGMRES::AdditionalData solver_parameters(
-            true,
+            false,
             this->simulation_parameters.linear_solver.max_krylov_vectors);
           try
           {

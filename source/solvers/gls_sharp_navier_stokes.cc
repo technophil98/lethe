@@ -90,6 +90,7 @@ GLSSharpNavierStokesSolver<dim>::generate_cut_cells_map()
                                        this->dof_handler,
                                        support_points);
   cut_cells_map.clear();
+  cells_inside_map.clear();
   const auto &       cell_iterator = this->dof_handler.active_cell_iterators();
   const unsigned int dofs_per_cell = this->fe->dofs_per_cell;
   std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
@@ -836,6 +837,90 @@ GLSSharpNavierStokesSolver<dim>::calculate_L2_error_particles()
 
 template <int dim>
 void
+GLSSharpNavierStokesSolver<dim>::particles_dem()
+{
+    using numbers::PI;
+    Tensor<1, dim> g   = this->simulation_parameters.particlesParameters.gravity;
+    double         rho = this->simulation_parameters.particlesParameters.density;
+    double dt= this->simulation_control->get_time_steps_vector()[0];
+    double dt_dem=dt/1000;
+    double particle_stiffness=10000;
+    //local time for the dem step
+    std::vector<Tensor<1,dim>> normal_contact_force(particles.size());
+    std::vector<Tensor<1,dim>> current_fluid_force(particles.size());
+
+    std::vector<Tensor<1,dim>> velocity(particles.size());
+    std::vector<Point<dim>> position(particles.size());
+
+    double t=0;
+    Tensor<1, dim> gravity;
+
+    for (unsigned int p_i = 0; p_i < particles.size(); ++p_i) {
+        position[p_i]=particles[p_i].last_position;
+        velocity[p_i]=particles[p_i].last_velocity;
+        particles[p_i].impulsion=0;
+    }
+
+    while(t<dt) {
+        normal_contact_force.clear();
+        normal_contact_force.resize(particles.size());
+        current_fluid_force.clear();
+        current_fluid_force.resize(particles.size());
+        for (unsigned int p_i = 0; p_i < particles.size(); ++p_i) {
+
+
+            // Particle Particle contact force;
+            for (unsigned int p_j = 0; p_j < particles.size(); ++p_j) {
+                if(p_j!=p_i) {
+                    double overlap = 0;
+                    double dist = (position[p_i] - position[p_j] ).norm();
+                    if (dist < (particles[p_i].radius + particles[p_j].radius)) {
+                        overlap = (particles[p_i].radius + particles[p_j].radius)-dist;
+                    }
+                    normal_contact_force[p_i]+=(position[p_i] - position[p_j] )/dist*overlap*particle_stiffness;
+                }
+            }
+
+            // current fluid_force (inteprolate the fluide force in the current time step)
+
+
+        }
+        for (unsigned int p_i = 0; p_i < particles.size(); ++p_i) {
+            if (dim == 2)
+                gravity =
+                        g * (particles[p_i].mass -
+                             particles[p_i].radius * particles[p_i].radius * PI * rho);
+            if (dim == 3)
+            {
+                gravity =
+                        g * (particles[p_i].mass - 4.0 / 3.0 * particles[p_i].radius *
+                                                   particles[p_i].radius *
+                                                   particles[p_i].radius * PI * rho);
+            }
+            current_fluid_force[p_i]=particles[p_i].last_forces+(particles[p_i].forces-particles[p_i].last_forces)*t/dt;
+
+            velocity[p_i]=velocity[p_i] +(current_fluid_force[p_i]+normal_contact_force[p_i]+ gravity) * dt_dem / particles[p_i].mass;
+            position[p_i]= position[p_i] +velocity[p_i]* dt_dem ;
+
+            if(normal_contact_force[p_i].norm()!=0)
+                this->pcout<<"particle "<< p_i <<" contact_force "<<normal_contact_force[p_i]<<" t "<< this->simulation_control->get_current_time()-dt+t <<std::endl;
+            //this->pcout<<"particle "<< p_i <<" current_fluid_force "<<current_fluid_force[p_i]<<std::endl;
+            particles[p_i].impulsion+=(current_fluid_force[p_i]+normal_contact_force[p_i]+ gravity) * dt_dem;
+        }
+
+        t+=dt_dem;
+    }
+    for (unsigned int p_i = 0; p_i < particles.size(); ++p_i) {
+        //particles[p_i].impulsion=(2*(position[p_i]-particles[p_i].last_position)/dt-2*particles[p_i].last_velocity)*particles[p_i].mass;
+        particles[p_i].position=position[p_i];
+        this->pcout << "particle " << p_i << " velocity " << velocity[p_i] << std::endl;
+        this->pcout << "particle " << p_i << " position " << position[p_i] << std::endl;
+    }
+
+}
+
+template <int dim>
+void
 GLSSharpNavierStokesSolver<dim>::integrate_particles()
 {
   // Integrate the velocity of the particle. If integrate motion is defined as
@@ -854,90 +939,80 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
 
   if (this->simulation_parameters.particlesParameters.integrate_motion)
     {
-      Tensor<1, dim> gravity;
 
+      particles_dem();
       for (unsigned int p = 0; p < particles.size(); ++p)
         {
+          double volume=0;
+          if (dim == 2)
+              volume=particles[p].radius * particles[p].radius * PI * rho;
+          if (dim == 3)
+          {
+              volume= 4.0 / 3.0 * particles[p].radius *
+                        particles[p].radius *particles[p].radius * PI ;
+          }
+
           // Translation
           // Define the gravity force applied on the particle based on his masse
           // and the density of fluide applied on it.
 
-          if (dim == 2)
-            gravity =
-              g * (particles[p].mass -
-                   particles[p].radius * particles[p].radius * PI * rho);
-          if (dim == 3)
-            {
-              gravity =
-                g * (particles[p].mass - 4.0 / 3.0 * particles[p].radius *
-                                           particles[p].radius *
-                                           particles[p].radius * PI * rho);
-            }
           // Evaluate the velocity of the particle
 
-          Tensor<1, dim> velocity_iter;
-          velocity_iter =
-            particles[p].last_velocity +
-            (particles[p].forces + gravity) * dt / particles[p].mass;
 
-          // This section is used to check if the fix point iteration is
+
+          Tensor<1,dim> residual_velocity= particles[p].last_velocity + particles[p].impulsion/particles[p].mass-particles[p].velocity;
+          //std::cout<<"particle "<< p<< " residual "<<  residual_velocity <<std::endl;
+          //std::cout<<"particle "<< p<< " masse "<<  particles[p].mass <<std::endl;
+
+          //std::cout<<"particle "<< p<< " d_impulsion "<< (particles[p].impulsion-particles[p].impulsion_iter) <<std::endl;
+          //std::cout<<"particle "<< p<< " d_velocity"<< (particles[p].velocity-particles[p].velocity_iter) <<std::endl;
+          // check if it's the first iteration if this is the case the variation of impulsion is assume to be due only to virtual masse of an isolated particle.
+          // we assume that the jacobien of the variation of impulsion due to variation of velocity is diagonal. ( this wont be true for contact)
+          Tensor<2,dim> jac_velocity;
+          if(particles[p].impulsion_iter.norm()==0){
+              for (unsigned int d=0;d<dim;++d) {
+                  jac_velocity[d][d]=-1-0.5*volume*rho/particles[p].mass;
+              }
+          }
+          else{
+              for (unsigned int d=0;d<dim;++d) {
+                  if((particles[p].velocity[d]-particles[p].velocity_iter[d])!=0)
+                    jac_velocity[d][d]=-1+(particles[p].impulsion[d]-particles[p].impulsion_iter[d])/(particles[p].velocity[d]-particles[p].velocity_iter[d])/particles[p].mass;
+                  else
+                      jac_velocity[d][d]=-1-0.5*volume*rho/particles[p].mass;
+              }
+          }
+          //std::cout<<"particle "<< p<< " impulsion "<<  particles[p].impulsion<<std::endl;
+          //std::cout<<"particle "<< p<< " dx "<<  -residual_velocity*invert(jac_velocity)<<std::endl;
+          particles[p].velocity_iter = particles[p].velocity;
+
+          particles[p].velocity=particles[p].velocity_iter-residual_velocity*invert(jac_velocity);
+
+
+            // This section is used to check if the fix point iteration is
           // diverging. If, between 2 iterations, the correction changes its
           // direction the relaxation parameter alpha is divided by 2. A change
           // of direction is defined as a negative cross product of the
           // correction vector and the last correction vector will the norm of
           // the new correction vector is larger than the last one.
-          Tensor<1, dim> last_variation_v =
-            particles[p].velocity_iter - particles[p].last_velocity;
-          Tensor<1, dim> variation_v =
-            velocity_iter - particles[p].last_velocity;
-          double cross_product_v;
-          if (dim == 2)
-            cross_product_v = (last_variation_v[0] * variation_v[0] +
-                               last_variation_v[1] * variation_v[1]) /
-                              (last_variation_v.norm() * variation_v.norm());
-          if (dim == 3)
-            cross_product_v = (last_variation_v[0] * variation_v[0] +
-                               last_variation_v[1] * variation_v[1] +
-                               last_variation_v[2] * variation_v[2]) /
-                              (last_variation_v.norm() * variation_v.norm());
 
-          // Evaluate the velocity of the particle with the relaxation parameter
-          if (last_variation_v.norm() < 1e-10)
-            {
-              particles[p].velocity =
-                particles[p].velocity +
-                alpha * (velocity_iter - particles[p].velocity);
-              ;
-            }
-          else
-            {
-              if (variation_v.norm() * cross_product_v >
-                  -last_variation_v.norm())
-                {
-                  particles[p].velocity =
-                    particles[p].velocity +
-                    alpha * particles[p].local_alpha_force *
-                      (velocity_iter - particles[p].velocity);
-                }
-              else
-                {
-                  // If a potential divergence is observed the norm of the
-                  // correction vector is adjusted to be half of the last
-                  // correction vector norm and alpha are divided by 2.
-                  particles[p].velocity =
-                    particles[p].velocity + variation_v *
-                                              last_variation_v.norm() /
-                                              variation_v.norm() / 2;
-                  particles[p].local_alpha_force =
-                    particles[p].local_alpha_force / 2;
-                }
-            }
-          particles[p].velocity_iter = particles[p].velocity;
+          particles[p].impulsion_iter=particles[p].impulsion;
 
-          particles[p].position =
+          /*particles[p].position =
             particles[p].last_position +
             (particles[p].velocity * 0.5 + particles[p].last_velocity * 0.5) *
-              dt;
+              dt;*/
+
+
+          this->pcout << "particle " << p << " velocity " << particles[p].velocity << std::endl;
+          this->pcout << "particle " << p << " residual " << residual_velocity.norm() << std::endl;
+          this->pcout << "particle " << p << " position " << particles[p].position << std::endl;
+
+          //std::cout<<"particle "<< p<< " position "<<  particles[p].position <<std::endl;
+         // std::cout<<"particle "<< p<< " velocity "<<  particles[p].velocity <<std::endl;
+
+
+
 
           // For the rotation velocity : same logic as the velocity.
           if (dim == 2)
@@ -1086,6 +1161,7 @@ GLSSharpNavierStokesSolver<dim>::finish_time_step_particles()
       particles[p].last_omega         = particles[p].omega;
       particles[p].local_alpha_torque = 1;
       particles[p].local_alpha_force  = 1;
+      particles[p].impulsion_iter     = 0;
 
       if (this->simulation_parameters.particlesParameters.integrate_motion)
         {
@@ -1467,7 +1543,7 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
                       sum_line = volume / dt;
                   else
                       sum_line = 1./ (this->simulation_parameters.physical_properties.viscosity*std::pow(volume,1./dim));
-
+                  sum_line = volume / dt;
                   // Check if the DOfs is owned and if it's not a hanging node.
                   if (((component_i < dim) || use_ib_for_pressure ) &&
                       this->locally_owned_dofs.is_element(
@@ -2080,6 +2156,7 @@ GLSSharpNavierStokesSolver<dim>::solve()
         }
       else
         {
+          ib_done.clear();
           refine_ib();
           NavierStokesBase<dim, TrilinosWrappers::MPI::Vector, IndexSet>::
             refine_mesh();
@@ -2088,14 +2165,13 @@ GLSSharpNavierStokesSolver<dim>::solve()
           this->iterate();
         }
 
-      this->postprocess_fd(false);
-
       this->finish_time_step();
 
       if (this->simulation_parameters.particlesParameters.calculate_force_ib)
         force_on_ib();
       finish_time_step_particles();
       write_force_ib();
+      this->postprocess_fd(false);
     }
 
   if (this->simulation_parameters.particlesParameters.calculate_force_ib)

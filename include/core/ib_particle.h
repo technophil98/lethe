@@ -38,6 +38,7 @@ public:
   Point<dim>     position;
   Point<dim>     last_position;
   Tensor<1, dim> forces;
+
   Tensor<1, dim> last_forces;
 
   Tensor<1, 3> torques;
@@ -63,6 +64,9 @@ public:
   // iteration.
   Tensor<1, 3> omega_iter;
 
+
+  Tensor<1, dim> impulsion;
+  Tensor<1, dim> impulsion_iter;
   // Allow the definition of a local relaxation parameter for each particle in
   // the integration process.
   double local_alpha_torque;

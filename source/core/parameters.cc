@@ -1199,6 +1199,11 @@ namespace Parameters
         "false",
         Patterns::Bool(),
         "Bool to define if you assemble the inside of particles with the NS equation.");
+      prm.declare_entry(
+                "length ratio",
+                "4",
+                Patterns::Double(),
+                "The length ratio used to define the points for the IB stencil. See definition of epsilone_n in the paper on sharp IB.");
       prm.declare_entry("fluid density",
                         "1",
                         Patterns::Double(),
@@ -1297,6 +1302,7 @@ namespace Parameters
       gravity[1]           = prm.get_double("gravity_y");
       assemble_navier_stokes_inside =
         prm.get_bool("assemble Navier-Stokes inside particles");
+      length_ratio         = prm.get_double("length ratio");
 
       if (dim == 3)
         gravity[2] = prm.get_double("gravity_z");

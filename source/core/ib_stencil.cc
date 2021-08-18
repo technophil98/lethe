@@ -17,13 +17,41 @@ IBStencil<dim>::nb_points(unsigned int order)
 
 template <int dim>
 std::vector<double>
-IBStencil<dim>::coefficients(unsigned int order)
+IBStencil<dim>::coefficients(unsigned int order, double length_ratio)
 {
   // Initialize the coefficient vector
   std::vector<double> coef(order + 1);
 
+  FullMatrix<double> vandermonde(order + 1,order + 1);
+  FullMatrix<double> stencil(order + 1,order + 1);
+  FullMatrix<double> inv_vandermonde(order + 1,order + 1);
+
+  Vector<double> rhs(order+1);
+  // Define the vandermonde matrix
+  for(unsigned int i=0;i<order + 1;++i){
+      for(unsigned int j=0;j<order + 1;++j){
+          vandermonde[i][j]=std::pow(1.*i/order,j);
+      }
+      rhs[i]=std::pow(1+length_ratio,i);
+  }
+  // Inverte the vandermond matrix
+    inv_vandermonde.invert(vandermonde);
+
+  // multiply each line of the inverted matrix by (1+length_ratio)^i
+  for(unsigned int i=0;i<order + 1;++i) {
+      for (unsigned int j = 0; j < order + 1; ++j) {
+          stencil[i][j] = inv_vandermonde[i][j]*rhs[i];
+      }
+  }
+  // sum the colones to get the coefficient
+  for(unsigned int i=0;i<order + 1;++i) {
+      for (unsigned int j = 0; j < order + 1; ++j) {
+          coef[order-i] +=stencil[j][i];
+      }
+
+  }
   // Fill the coefficient vector based on the order.
-  if (order == 1)
+  /*if (order == 1)
     {
       coef[0] = 9;
       coef[1] = -8;
@@ -33,6 +61,9 @@ IBStencil<dim>::coefficients(unsigned int order)
       coef[0] = 153;
       coef[1] = -288;
       coef[2] = 136;
+      coef[0] = 15;
+      coef[1] = -24;
+      coef[2] = 10;
     }
   if (order == 3)
     {
@@ -48,7 +79,7 @@ IBStencil<dim>::coefficients(unsigned int order)
       coef[2] = 332640;
       coef[3] = -215424;
       coef[4] = 52360;
-    }
+    }*/
   if (order > 4)
     {
       // In this case the cell is directly used to find the solution at the IB
@@ -64,6 +95,7 @@ IBStencil<dim>::coefficients(unsigned int order)
 template <int dim>
 std::tuple<Point<dim>, std::vector<Point<dim>>>
 IBStencil<dim>::points(unsigned int    order,
+                       double length_ratio,
                        IBParticle<dim> p,
                        Point<dim>      dof_point)
 {
@@ -80,7 +112,7 @@ IBStencil<dim>::points(unsigned int    order,
         (dof_point - p.position -
          p.radius * (dof_point - p.position) / (dof_point - p.position).norm());
 
-      Point<dim, double> interpolation_point_1(dof_point + vect_ib * 1 / 8);
+      Point<dim, double> interpolation_point_1(dof_point + vect_ib * 1 / length_ratio);
 
       interpolation_points.resize(1);
       interpolation_points[0] = interpolation_point_1;
@@ -93,9 +125,9 @@ IBStencil<dim>::points(unsigned int    order,
          p.radius * (dof_point - p.position) / (dof_point - p.position).norm());
 
 
-      Point<dim, double> interpolation_point_1(dof_point + vect_ib * 1. / 16.);
+      Point<dim, double> interpolation_point_1(dof_point + vect_ib * 1. / (length_ratio*2));
 
-      Point<dim, double> interpolation_point_2(dof_point + vect_ib * 1. / 8.);
+      Point<dim, double> interpolation_point_2(dof_point + vect_ib * 1. / length_ratio);
 
       interpolation_points.resize(2);
       interpolation_points[0] = interpolation_point_1;
@@ -108,11 +140,11 @@ IBStencil<dim>::points(unsigned int    order,
         (dof_point - p.position -
          p.radius * (dof_point - p.position) / (dof_point - p.position).norm());
 
-      Point<dim, double> interpolation_point_1(dof_point + vect_ib * 1. / 24.);
+      Point<dim, double> interpolation_point_1(dof_point + vect_ib * 1. / (length_ratio*3));
 
-      Point<dim, double> interpolation_point_2(dof_point + vect_ib * 1 / 12.);
+      Point<dim, double> interpolation_point_2(dof_point + vect_ib * 1 / (length_ratio*3/2));
 
-      Point<dim, double> interpolation_point_3(dof_point + vect_ib * 1. / 8.);
+      Point<dim, double> interpolation_point_3(dof_point + vect_ib * 1. / length_ratio);
 
       interpolation_points.resize(3);
       interpolation_points[0] = interpolation_point_1;
@@ -126,13 +158,13 @@ IBStencil<dim>::points(unsigned int    order,
         (dof_point - p.position -
          p.radius * (dof_point - p.position) / (dof_point - p.position).norm());
 
-      Point<dim, double> interpolation_point_1(dof_point + vect_ib * 1. / 32.);
+      Point<dim, double> interpolation_point_1(dof_point + vect_ib * 1. / (length_ratio*4));
 
-      Point<dim, double> interpolation_point_2(dof_point + vect_ib * 1 / 16.);
+      Point<dim, double> interpolation_point_2(dof_point + vect_ib * 1 / (length_ratio*2));
 
-      Point<dim, double> interpolation_point_3(dof_point + vect_ib * 3. / 32.);
+      Point<dim, double> interpolation_point_3(dof_point + vect_ib * 3. / (length_ratio*4));
 
-      Point<dim, double> interpolation_point_4(dof_point + vect_ib * 1. / 8.);
+      Point<dim, double> interpolation_point_4(dof_point + vect_ib * 1. / length_ratio);
 
       interpolation_points.resize(4);
       interpolation_points[0] = interpolation_point_1;
@@ -151,7 +183,7 @@ IBStencil<dim>::points(unsigned int    order,
 
       point = dof_point - vect_ib;
 
-      Point<dim, double> interpolation_point_1(dof_point + vect_ib * 1. / 8.);
+      Point<dim, double> interpolation_point_1(dof_point + vect_ib * 1. / length_ratio);
 
       interpolation_points.resize(1);
       interpolation_points[0] = interpolation_point_1;

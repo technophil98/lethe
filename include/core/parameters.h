@@ -634,6 +634,7 @@ namespace Parameters
     std::string                  ib_force_output_file;
     double                       density;
     Tensor<1, dim>               gravity;
+    double                       length_ratio;
 
     double alpha;
     bool   integrate_motion;

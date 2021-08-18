@@ -69,7 +69,7 @@ public:
    * @param dof_point, the support point of the DOF.
    */
   virtual std::tuple<Point<dim>, std::vector<Point<dim>>>
-  points(unsigned int order, IBParticle<dim> p, Point<dim> dof_point);
+  points(unsigned int order,double length_ratio, IBParticle<dim> p, Point<dim> dof_point);
 
   /**
    * @brief
@@ -83,7 +83,7 @@ public:
    * @param order, the stencil order.
    */
   virtual std::vector<double>
-  coefficients(unsigned int order);
+  coefficients(unsigned int order,double length_ratio);
 
   /**
    * @brief

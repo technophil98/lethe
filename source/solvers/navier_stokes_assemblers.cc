@@ -31,15 +31,6 @@ GLSNavierStokesAssemblerCore<dim>::assemble_matrix(
     this->simulation_control->get_time_steps_vector();
   const double dt  = time_steps_vector[0];
   const double sdt = 1. / dt;
-    //Tensor<1, dim> velocity_local;
-    double velocity_local=0;
-    double volume=0;
-    for (unsigned int q = 0; q < n_q_points; ++q)
-    {
-        velocity_local+=scratch_data.velocity_values[q].norm()*scratch_data.JxW[q];
-        volume+=scratch_data.JxW[q];
-    }
-
 
   // Loop over the quadrature points
   for (unsigned int q = 0; q < n_q_points; ++q)
@@ -59,14 +50,14 @@ GLSNavierStokesAssemblerCore<dim>::assemble_matrix(
 
       // Calculation of the magnitude of the velocity for the
       // stabilization parameter
-        const double u_mag = std::max(velocity.norm(), 1e-12);
-        const double tau =
+      const double u_mag = std::max(velocity.norm(), 1e-12);
+      const double tau =
                 this->simulation_control->get_assembly_method() ==
                 Parameters::SimulationControl::TimeSteppingMethod::steady ?
                 1. / std::sqrt(std::pow(2. * u_mag / h, 2) +
-                               std::pow(4 * viscosity / (h * h), 2)) :
-                1. / std::sqrt(std::pow(2.*sdt, 2) + std::pow(2. * u_mag / h, 2) +
-                               std::pow(4 * viscosity / (h * h), 2));
+                               9*std::pow(4 * viscosity / (h * h), 2)) :
+                1. / std::sqrt(std::pow(sdt, 2) + std::pow(2. * u_mag / h, 2) +
+                               9*std::pow(4 * viscosity / (h * h), 2));
 
       // Store JxW in local variable for faster access;
       const double JxW = JxW_vec[q];
@@ -183,23 +174,7 @@ GLSNavierStokesAssemblerCore<dim>::assemble_rhs(
   const double dt  = time_steps_vector[0];
   const double sdt = 1. / dt;
 
-    //Tensor<1, dim> velocity_local;
-    double velocity_local=0;
-    double volume=0;
-    for (unsigned int q = 0; q < n_q_points; ++q)
-    {
-        velocity_local+=scratch_data.velocity_values[q].norm()*scratch_data.JxW[q];
-        volume+=scratch_data.JxW[q];
-    }
 
-    /*const double u_mag = std::max(velocity_local/volume, 1e-12);
-    const double tau =
-            this->simulation_control->get_assembly_method() ==
-            Parameters::SimulationControl::TimeSteppingMethod::steady ?
-            1. / std::sqrt(std::pow(2. * u_mag / h, 2) +
-                            std::pow(4 * viscosity / (h * h), 2)) :
-            1. / std::sqrt(std::pow(2.*sdt, 2) + std::pow(2. * u_mag / h, 2) +
-                            std::pow(4 * viscosity / (h * h), 2));*/
   // Loop over the quadrature points
   for (unsigned int q = 0; q < n_q_points; ++q)
     {
@@ -229,14 +204,14 @@ GLSNavierStokesAssemblerCore<dim>::assemble_rhs(
       // stabilization parameter used is different if the simulation
       // is steady or unsteady. In the unsteady case it includes the
       // value of the time-step
-        const double u_mag = std::max(velocity.norm(), 1e-12);
-        const double tau =
+      const double u_mag = std::max(velocity.norm(), 1e-12);
+      const double tau =
                 this->simulation_control->get_assembly_method() ==
                 Parameters::SimulationControl::TimeSteppingMethod::steady ?
                 1. / std::sqrt(std::pow(2. * u_mag / h, 2) +
-                               std::pow(4 * viscosity / (h * h), 2)) :
-                1. / std::sqrt(std::pow(2.*sdt, 2) + std::pow(2. * u_mag / h, 2) +
-                               std::pow(4 * viscosity / (h * h), 2));
+                               9*std::pow(4 * viscosity / (h * h), 2)) :
+                1. / std::sqrt(std::pow(sdt, 2) + std::pow(2. * u_mag / h, 2) +
+                               9*std::pow(4 * viscosity / (h * h), 2));
 
 
       // Calculate the strong residual for GLS stabilization

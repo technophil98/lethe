@@ -841,6 +841,7 @@ template <int dim>
 void
 GLSSharpNavierStokesSolver<dim>::particles_dem()
 {
+
     using numbers::PI;
     Tensor<1, dim> g   = this->simulation_parameters.particlesParameters.gravity;
     double         rho = this->simulation_parameters.particlesParameters.density;
@@ -894,6 +895,7 @@ GLSSharpNavierStokesSolver<dim>::particles_dem()
                                                    particles[p_i].radius *
                                                    particles[p_i].radius * PI * rho);
             }
+
             current_fluid_force[p_i]=particles[p_i].last_forces+(particles[p_i].forces-particles[p_i].last_forces)*t/dt;
 
             velocity[p_i]=velocity[p_i] +(current_fluid_force[p_i]+normal_contact_force[p_i]+ gravity) * dt_dem / particles[p_i].mass;
@@ -914,6 +916,7 @@ template <int dim>
 void
 GLSSharpNavierStokesSolver<dim>::integrate_particles()
 {
+  TimerOutput::Scope t(this->computing_timer, "integrate particles");
   // Integrate the velocity of the particle. If integrate motion is defined as
   // true in the parameter this function will also integrate the force to update
   // the velocity. Otherwise the velocity is kept constant
@@ -974,10 +977,15 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
           // the new correction vector is larger than the last one.
 
           particles[p].impulsion_iter=particles[p].impulsion;
+          if (this->simulation_parameters.non_linear_solver.verbosity != Parameters::Verbosity::quiet)
+          {
+              this->pcout << "particle " << p << " residual " << residual_velocity.norm() << std::endl;
+              //this->pcout << "particle " << p << " velocity " << particles[p].velocity<< std::endl;
+              //this->pcout << "particle " << p << " position " << particles[p].position<< std::endl;
+          }
 
-          this->pcout << "particle " << p << " velocity " << particles[p].velocity << std::endl;
-          this->pcout << "particle " << p << " residual " << residual_velocity.norm() << std::endl;
-          this->pcout << "particle " << p << " position " << particles[p].position << std::endl;
+
+
 
           // For the rotation velocity : same logic as the velocity.
           if (dim == 2)
@@ -1371,6 +1379,8 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
                                        this->dof_handler,
                                        support_points);
 
+  double viscosity   = this->simulation_parameters.physical_properties.viscosity;
+
   // Initalize fe value objects in order to do calculation with it later
   QGauss<dim>        q_formula(this->number_quadrature_points);
   FEValues<dim>      fe_values(*this->fe,
@@ -1477,6 +1487,7 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
           for (unsigned int qf = 0; qf < n_q_points; ++qf)
               volume += fe_values.JxW(qf);
 
+          double h= std::pow(volume, 1./dim);
 
           //sum_line = volume / dt;
 
@@ -1503,8 +1514,8 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
                   bool dof_is_inside=(support_points[local_dof_indices[i]]-particles[ib_particle_id].position).norm()<particles[ib_particle_id].radius;
                   bool use_ib_for_pressure=(dof_is_inside)&&(component_i==dim)&&(this->simulation_parameters.particlesParameters
                                                                                     .assemble_navier_stokes_inside == false);
+                  sum_line= volume / dt;
 
-                  sum_line = volume / dt;
                   // Check if the DOfs is owned and if it's not a hanging node.
                   if (((component_i < dim) || use_ib_for_pressure ) &&
                       this->locally_owned_dofs.is_element(
@@ -1561,7 +1572,7 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
                       bool point_in_cell = point_inside_cell(
                         cell,
                         interpolation_points[stencil.nb_points(order) - 1]);
-                      if (cell_2 == cell || point_in_cell)
+                      if (cell_2 == cell || point_in_cell||use_ib_for_pressure)
                         {
                           // Give the DOF an approximated value. This help
                           // with pressure shock when the DOF passe from part of
@@ -1804,7 +1815,6 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
             }
         }
     }
-
   this->system_matrix.compress(VectorOperation::insert);
   this->system_rhs.compress(VectorOperation::insert);
 }
@@ -2067,6 +2077,7 @@ template <int dim>
 void
 GLSSharpNavierStokesSolver<dim>::solve()
 {
+  MultithreadInfo::set_thread_limit(1);
   read_mesh_and_manifolds(
     this->triangulation,
     this->simulation_parameters.mesh,

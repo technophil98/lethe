@@ -46,7 +46,8 @@ namespace Parameters
   enum class Verbosity
   {
     quiet,
-    verbose
+    verbose,
+    extra_verbose
   };
 
   /**
@@ -397,8 +398,7 @@ namespace Parameters
       gmres,
       bicgstab,
       amg,
-      direct,
-      hybrid
+      direct
     };
     SolverType solver;
 

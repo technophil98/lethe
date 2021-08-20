@@ -256,12 +256,6 @@ private:
                    const bool   renewed_matrix);
 
 
-  void
-  solve_system_hybrid(const bool   initial_step,
-          const double absolute_residual,
-          const double relative_residual,
-          const bool   renewed_matrix);
-
   /**
    * @brief Direct solver using TrilinosWrappers::SolverDirect
    * The use of this solver should be avoided for 3D probelm
@@ -292,6 +286,7 @@ protected:
   TrilinosWrappers::SparseMatrix system_matrix;
 
 private:
+  double                                             current_residual;
   SparsityPattern                                    sparsity_pattern;
   std::shared_ptr<TrilinosWrappers::PreconditionILU> ilu_preconditioner;
   std::shared_ptr<TrilinosWrappers::PreconditionAMG> amg_preconditioner;

@@ -50,36 +50,9 @@ IBStencil<dim>::coefficients(unsigned int order, double length_ratio)
       }
 
   }
+  
   // Fill the coefficient vector based on the order.
-  /*if (order == 1)
-    {
-      coef[0] = 9;
-      coef[1] = -8;
-    }
-  if (order == 2)
-    {
-      coef[0] = 153;
-      coef[1] = -288;
-      coef[2] = 136;
-      coef[0] = 15;
-      coef[1] = -24;
-      coef[2] = 10;
-    }
-  if (order == 3)
-    {
-      coef[0] = 2925;
-      coef[1] = -8424;
-      coef[2] = 8100;
-      coef[3] = -2600;
-    }
-  if (order == 4)
-    {
-      coef[0] = 58905;
-      coef[1] = -228480;
-      coef[2] = 332640;
-      coef[3] = -215424;
-      coef[4] = 52360;
-    }*/
+
   if (order > 4)
     {
       // In this case the cell is directly used to find the solution at the IB

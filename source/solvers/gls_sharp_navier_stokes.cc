@@ -841,7 +841,6 @@ template <int dim>
 void
 GLSSharpNavierStokesSolver<dim>::particles_dem()
 {
-
     using numbers::PI;
     Tensor<1, dim> g   = this->simulation_parameters.particlesParameters.gravity;
     double         rho = this->simulation_parameters.particlesParameters.density;
@@ -928,7 +927,6 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
   using numbers::PI;
   double         dt    = this->simulation_control->get_time_steps_vector()[0];
   double         alpha = this->simulation_parameters.particlesParameters.alpha;
-  Tensor<1, dim> g   = this->simulation_parameters.particlesParameters.gravity;
   double         rho = this->simulation_parameters.particlesParameters.density;
 
   if (this->simulation_parameters.particlesParameters.integrate_motion)
@@ -950,8 +948,8 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
           // Evaluate the velocity of the particle
           Tensor<1,dim> residual_velocity= particles[p].last_velocity + particles[p].impulsion/particles[p].mass-particles[p].velocity;
 
-          // check if it's the first iteration if this is the case the variation of impulsion is assume to be due only to virtual masse of an isolated particle.
-          // we assume that the jacobien of the variation of impulsion due to variation of velocity is diagonal. ( this wont be true for contact)
+          // check if it's the first iteration if this is the case the variation of impulsion is assume to be due only to virtual mass of an isolated particle.
+          // We assume that the Jacobian of the variation of impulsion due to variation of velocity is diagonal. (This is not always true but is a good approximation.)
           Tensor<2,dim> jac_velocity;
           if(particles[p].impulsion_iter.norm()==0){
               for (unsigned int d=0;d<dim;++d) {
@@ -980,8 +978,6 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
           if (this->simulation_parameters.non_linear_solver.verbosity != Parameters::Verbosity::quiet)
           {
               this->pcout << "particle " << p << " residual " << residual_velocity.norm() << std::endl;
-              //this->pcout << "particle " << p << " velocity " << particles[p].velocity<< std::endl;
-              //this->pcout << "particle " << p << " position " << particles[p].position<< std::endl;
           }
 
 
@@ -1379,7 +1375,6 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
                                        this->dof_handler,
                                        support_points);
 
-  double viscosity   = this->simulation_parameters.physical_properties.viscosity;
 
   // Initalize fe value objects in order to do calculation with it later
   QGauss<dim>        q_formula(this->number_quadrature_points);
@@ -1487,7 +1482,6 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
           for (unsigned int qf = 0; qf < n_q_points; ++qf)
               volume += fe_values.JxW(qf);
 
-          double h= std::pow(volume, 1./dim);
 
           //sum_line = volume / dt;
 

@@ -247,8 +247,8 @@ private:
 
   /**
    * @brief
-   * Integrate the particle velocity and position based on the forces and
-   * torques and applies the next value to the particle.
+   * Function that allow subtime stepping to allow contact between particle.
+   * Note : This function is a prototype and will be heavely modified in upcomming PR.
    */
   void
   particles_dem();

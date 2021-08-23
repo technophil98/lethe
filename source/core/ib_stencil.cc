@@ -27,7 +27,7 @@ IBStencil<dim>::coefficients(unsigned int order, double length_ratio)
   FullMatrix<double> inv_vandermonde(order + 1,order + 1);
 
   Vector<double> rhs(order+1);
-  // Define the vandermonde matrix
+  // Define the Vandermonde matrix
   for(unsigned int i=0;i<order + 1;++i){
       for(unsigned int j=0;j<order + 1;++j){
           vandermonde[i][j]=std::pow(1.*i/order,j);
@@ -37,18 +37,17 @@ IBStencil<dim>::coefficients(unsigned int order, double length_ratio)
   // Inverte the vandermond matrix
     inv_vandermonde.invert(vandermonde);
 
-  // multiply each line of the inverted matrix by (1+length_ratio)^i
+  // Multiply each line of the inverted matrix by (1+length_ratio)^i
   for(unsigned int i=0;i<order + 1;++i) {
       for (unsigned int j = 0; j < order + 1; ++j) {
           stencil[i][j] = inv_vandermonde[i][j]*rhs[i];
       }
   }
-  // sum the colones to get the coefficient
+  // Sum the colones to get the coefficient
   for(unsigned int i=0;i<order + 1;++i) {
       for (unsigned int j = 0; j < order + 1; ++j) {
           coef[order-i] +=stencil[j][i];
       }
-
   }
   
   // Fill the coefficient vector based on the order.

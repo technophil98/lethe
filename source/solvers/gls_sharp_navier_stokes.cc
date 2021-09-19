@@ -480,11 +480,13 @@ GLSSharpNavierStokesSolver<dim>::force_on_ib()
                                         .first == false)
                                     {
                                       // Get the cell use for the extrapolation
+                                      auto point_to_find_cell=stencil.point(particles[p],
+                                                                              support_points
+                                                                                [local_face_dof_indices[i]]);
                                       cell_2 =
                                         find_cell_around_point_with_neighbors(
                                           cell,
-                                          interpolation_points
-                                            [stencil.nb_points(order) - 1]);
+                                          point_to_find_cell);
                                     }
 
                                   cell_2->get_dof_indices(local_dof_indices_2);
@@ -1539,16 +1541,19 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
                       // and the locations of the points use in the stencil
                       // calculation.
 
+
                       auto [point, interpolation_points] =
                         stencil.points(order,
                                        length_ratio,
                                        particles[ib_particle_id],
                                        support_points[local_dof_indices[i]]);
 
+                      auto point_to_find_cell=stencil.point(particles[ib_particle_id],
+                                                               support_points[local_dof_indices[i]]);
                       // Find the cell used for the stencil definition.
                       auto cell_2 = find_cell_around_point_with_neighbors(
                         cell,
-                        interpolation_points[stencil.nb_points(order) - 1]);
+                        point_to_find_cell);
                       cell_2->get_dof_indices(local_dof_indices_2);
 
                       ib_done[global_index_overwrite] =

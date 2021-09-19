@@ -60,8 +60,7 @@ public:
    * variable "point" change definition. In the case of stencil orders 1 to 4
    * the variable point returns the position of the DOF directly. In the case of
    * high order stencil, it returns the position of the point that is on the IB.
-   * The variable "interpolation points" return the points used to define the
-   * cell used for the stencil definition and the locations of the points use in
+   * The variable "interpolation points" return the points used for the stencil definition and the locations of the points use in
    * the stencil calculation.
    *
    * @param order, the stencil order.
@@ -70,6 +69,17 @@ public:
    */
   virtual std::tuple<Point<dim>, std::vector<Point<dim>>>
   points(unsigned int order,double length_ratio, IBParticle<dim> p, Point<dim> dof_point);
+
+  /**
+   * @brief
+   * Define the point used to defined the cell used for the stencil calculation.
+   *
+   * @param order, the stencil order.
+   * @param p, the IB particle that cuts the cell.
+   * @param dof_point, the support point of the DOF.
+   */
+  virtual Point<dim>
+  point(IBParticle<dim> p, Point<dim> dof_point);
 
   /**
    * @brief

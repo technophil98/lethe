@@ -163,6 +163,24 @@ IBStencil<dim>::points(unsigned int    order,
   return {point, interpolation_points};
 }
 
+template <int dim>
+Point<dim>
+IBStencil<dim>::point(IBParticle<dim> p,
+                       Point<dim>      dof_point)
+{
+  // Create the vector of points used for the stencil based on the order of the
+  // stencil. Also return the DOF position or the position of the point on the
+  // IB depending if the cell is used directly
+
+
+  Tensor<1, dim, double> vect_ib =
+    (dof_point - p.position -
+     p.radius * (dof_point - p.position) / (dof_point - p.position).norm());
+  
+  Point<dim> point(dof_point +vect_ib * 1.0 / 16);
+
+  return point;
+}
 
 template <int dim>
 double

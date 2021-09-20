@@ -227,7 +227,7 @@ template <int dim>
 void
 GDTracer<dim>::attach_solution_to_output(DataOut<dim> &data_out)
 {
-  data_out.add_data_vector(dof_handler, present_solution, "tracer");
+  data_out.add_data_vector(dof_handler, present_solution, "gd tracer");
 }
 
 template <int dim>

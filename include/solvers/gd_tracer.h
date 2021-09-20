@@ -22,8 +22,8 @@
  * Author: Bruno Blais, Polytechnique Montreal, 2020-
  */
 
-#ifndef lethe_tracer_h
-#define lethe_tracer_h
+#ifndef lethe_gd_tracer_h
+#define lethe_gd_tracer_h
 
 #include <core/bdf.h>
 #include <core/simulation_control.h>

@@ -57,7 +57,7 @@ Parameters::Multiphysics::parse_parameters(ParameterHandler &prm)
     fluid_dynamics = prm.get_bool("fluid dynamics");
     heat_transfer  = prm.get_bool("heat transfer");
     gls_tracer     = prm.get_bool("gls tracer");
-    gd_tracer      = prm.get_bool("gd tracer");
+    dg_tracer      = prm.get_bool("gd tracer");
     free_surface   = prm.get_bool("free surface");
     buoyancy_force = prm.get_bool("buoyancy force");
 

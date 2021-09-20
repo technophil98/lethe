@@ -32,7 +32,7 @@ enum PhysicsID : unsigned int
   heat_transfer  = 1,
   gls_tracer     = 2,
   free_surface   = 3,
-  gd_tracer      = 4
+  dg_tracer      = 4
 };
 
 #endif

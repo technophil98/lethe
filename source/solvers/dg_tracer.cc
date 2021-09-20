@@ -3,7 +3,7 @@
 #include <core/time_integration_utilities.h>
 #include <core/utilities.h>
 
-#include <solvers/gd_tracer.h>
+#include <solvers/dg_tracer.h>
 #include <solvers/tracer_assemblers.h>
 #include <solvers/tracer_scratch_data.h>
 
@@ -28,7 +28,7 @@
 
 template <int dim>
 void
-GDTracer<dim>::setup_assemblers()
+DGTracer<dim>::setup_assemblers()
 {
   this->assemblers.clear();
 
@@ -45,7 +45,7 @@ GDTracer<dim>::setup_assemblers()
 
 template <int dim>
 void
-GDTracer<dim>::assemble_system_matrix()
+DGTracer<dim>::assemble_system_matrix()
 {
   this->system_matrix = 0;
   setup_assemblers();
@@ -61,8 +61,8 @@ GDTracer<dim>::assemble_system_matrix()
   WorkStream::run(this->dof_handler.begin_active(),
                   this->dof_handler.end(),
                   *this,
-                  &GDTracer::assemble_local_system_matrix,
-                  &GDTracer::copy_local_matrix_to_global_matrix,
+                  &DGTracer::assemble_local_system_matrix,
+                  &DGTracer::copy_local_matrix_to_global_matrix,
                   scratch_data,
                   StabilizedMethodsCopyData(this->fe->n_dofs_per_cell(),
                                             this->cell_quadrature->size()));
@@ -72,7 +72,7 @@ GDTracer<dim>::assemble_system_matrix()
 
 template <int dim>
 void
-GDTracer<dim>::assemble_local_system_matrix(
+DGTracer<dim>::assemble_local_system_matrix(
   const typename DoFHandler<dim>::active_cell_iterator &cell,
   TracerScratchData<dim> &                              scratch_data,
   StabilizedMethodsCopyData &                           copy_data)
@@ -120,7 +120,7 @@ GDTracer<dim>::assemble_local_system_matrix(
 
 template <int dim>
 void
-GDTracer<dim>::copy_local_matrix_to_global_matrix(
+DGTracer<dim>::copy_local_matrix_to_global_matrix(
   const StabilizedMethodsCopyData &copy_data)
 {
   if (!copy_data.cell_is_local)
@@ -135,7 +135,7 @@ GDTracer<dim>::copy_local_matrix_to_global_matrix(
 
 template <int dim>
 void
-GDTracer<dim>::assemble_system_rhs()
+DGTracer<dim>::assemble_system_rhs()
 {
   // TimerOutput::Scope t(this->computing_timer, "Assemble RHS");
   this->system_rhs = 0;
@@ -152,8 +152,8 @@ GDTracer<dim>::assemble_system_rhs()
   WorkStream::run(this->dof_handler.begin_active(),
                   this->dof_handler.end(),
                   *this,
-                  &GDTracer::assemble_local_system_rhs,
-                  &GDTracer::copy_local_rhs_to_global_rhs,
+                  &DGTracer::assemble_local_system_rhs,
+                  &DGTracer::copy_local_rhs_to_global_rhs,
                   scratch_data,
                   StabilizedMethodsCopyData(this->fe->n_dofs_per_cell(),
                                             this->cell_quadrature->size()));
@@ -163,7 +163,7 @@ GDTracer<dim>::assemble_system_rhs()
 
 template <int dim>
 void
-GDTracer<dim>::assemble_local_system_rhs(
+DGTracer<dim>::assemble_local_system_rhs(
   const typename DoFHandler<dim>::active_cell_iterator &cell,
   TracerScratchData<dim> &                              scratch_data,
   StabilizedMethodsCopyData &                           copy_data)
@@ -211,7 +211,7 @@ GDTracer<dim>::assemble_local_system_rhs(
 
 template <int dim>
 void
-GDTracer<dim>::copy_local_rhs_to_global_rhs(
+DGTracer<dim>::copy_local_rhs_to_global_rhs(
   const StabilizedMethodsCopyData &copy_data)
 {
   if (!copy_data.cell_is_local)
@@ -225,14 +225,14 @@ GDTracer<dim>::copy_local_rhs_to_global_rhs(
 
 template <int dim>
 void
-GDTracer<dim>::attach_solution_to_output(DataOut<dim> &data_out)
+DGTracer<dim>::attach_solution_to_output(DataOut<dim> &data_out)
 {
-  data_out.add_data_vector(dof_handler, present_solution, "gd tracer");
+  data_out.add_data_vector(dof_handler, present_solution, "dg tracer");
 }
 
 template <int dim>
 double
-GDTracer<dim>::calculate_L2_error()
+DGTracer<dim>::calculate_L2_error()
 {
   auto mpi_communicator = triangulation->get_communicator();
 
@@ -286,7 +286,7 @@ GDTracer<dim>::calculate_L2_error()
 
 template <int dim>
 void
-GDTracer<dim>::finish_simulation()
+DGTracer<dim>::finish_simulation()
 {
   auto         mpi_communicator = triangulation->get_communicator();
   unsigned int this_mpi_process(
@@ -313,7 +313,7 @@ GDTracer<dim>::finish_simulation()
 
 template <int dim>
 void
-GDTracer<dim>::percolate_time_vectors()
+DGTracer<dim>::percolate_time_vectors()
 {
   for (unsigned int i = previous_solutions.size() - 1; i > 0; --i)
     {
@@ -324,14 +324,14 @@ GDTracer<dim>::percolate_time_vectors()
 
 template <int dim>
 void
-GDTracer<dim>::finish_time_step()
+DGTracer<dim>::finish_time_step()
 {
   percolate_time_vectors();
 }
 
 template <int dim>
 void
-GDTracer<dim>::postprocess(bool first_iteration)
+DGTracer<dim>::postprocess(bool first_iteration)
 {
   if (simulation_parameters.analytical_solution->calculate_error() == true &&
       !first_iteration)
@@ -361,7 +361,7 @@ GDTracer<dim>::postprocess(bool first_iteration)
 
 template <int dim>
 void
-GDTracer<dim>::calculate_tracer_statistics()
+DGTracer<dim>::calculate_tracer_statistics()
 {
   auto mpi_communicator = triangulation->get_communicator();
 
@@ -446,7 +446,7 @@ GDTracer<dim>::calculate_tracer_statistics()
 
 template <int dim>
 void
-GDTracer<dim>::write_tracer_statistics()
+DGTracer<dim>::write_tracer_statistics()
 {
   auto mpi_communicator = triangulation->get_communicator();
 
@@ -462,7 +462,7 @@ GDTracer<dim>::write_tracer_statistics()
 
 template <int dim>
 void
-GDTracer<dim>::pre_mesh_adaptation()
+DGTracer<dim>::pre_mesh_adaptation()
 {
   solution_transfer.prepare_for_coarsening_and_refinement(present_solution);
 
@@ -475,7 +475,7 @@ GDTracer<dim>::pre_mesh_adaptation()
 
 template <int dim>
 void
-GDTracer<dim>::post_mesh_adaptation()
+DGTracer<dim>::post_mesh_adaptation()
 {
   auto mpi_communicator = triangulation->get_communicator();
 
@@ -504,7 +504,7 @@ GDTracer<dim>::post_mesh_adaptation()
 
 template <int dim>
 void
-GDTracer<dim>::write_checkpoint()
+DGTracer<dim>::write_checkpoint()
 {
   std::vector<const TrilinosWrappers::MPI::Vector *> sol_set_transfer;
 
@@ -518,7 +518,7 @@ GDTracer<dim>::write_checkpoint()
 
 template <int dim>
 void
-GDTracer<dim>::read_checkpoint()
+DGTracer<dim>::read_checkpoint()
 {
   auto mpi_communicator = triangulation->get_communicator();
   this->pcout << "Reading tracer checkpoint" << std::endl;
@@ -551,7 +551,7 @@ GDTracer<dim>::read_checkpoint()
 
 template <int dim>
 void
-GDTracer<dim>::setup_dofs()
+DGTracer<dim>::setup_dofs()
 {
   dof_handler.distribute_dofs(*fe);
   DoFRenumbering::Cuthill_McKee(this->dof_handler);
@@ -648,13 +648,13 @@ GDTracer<dim>::setup_dofs()
 
   // Provide the tracer dof_handler and present solution pointers to the
   // multiphysics interface
-  multiphysics->set_dof_handler(PhysicsID::gd_tracer, &this->dof_handler);
-  multiphysics->set_solution(PhysicsID::gd_tracer, &this->present_solution);
+  multiphysics->set_dof_handler(PhysicsID::dg_tracer, &this->dof_handler);
+  multiphysics->set_solution(PhysicsID::dg_tracer, &this->present_solution);
 }
 
 template <int dim>
 void
-GDTracer<dim>::set_initial_conditions()
+DGTracer<dim>::set_initial_conditions()
 {
   VectorTools::interpolate(*mapping,
                            dof_handler,
@@ -667,7 +667,7 @@ GDTracer<dim>::set_initial_conditions()
 
 template <int dim>
 void
-GDTracer<dim>::solve_linear_system(const bool initial_step,
+DGTracer<dim>::solve_linear_system(const bool initial_step,
                                    const bool /*renewed_matrix*/)
 {
   auto mpi_communicator = triangulation->get_communicator();
@@ -734,5 +734,5 @@ GDTracer<dim>::solve_linear_system(const bool initial_step,
 
 
 
-template class GDTracer<2>;
-template class GDTracer<3>;
+template class DGTracer<2>;
+template class DGTracer<3>;

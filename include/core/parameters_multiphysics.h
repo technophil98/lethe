@@ -37,7 +37,7 @@ namespace Parameters
     bool fluid_dynamics;
     bool heat_transfer;
     bool gls_tracer;
-    bool gd_tracer;
+    bool dg_tracer;
     bool free_surface;
     bool buoyancy_force;
 

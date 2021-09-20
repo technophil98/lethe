@@ -11,11 +11,7 @@
  * The full text of the license can be found in the file LICENSE at
  * the top level of the Lethe distribution.
  *
- * ---------------------------------------------------------------------
-
- *
- * Author: Bruno Blais, Polytechnique Montreal, 2019-
- */
+ * --------------------------------------------------------------------*/
 
 #ifndef lethe_gd_navier_stokes_h
 #define lethe_gd_navier_stokes_h
@@ -32,7 +28,6 @@
 #include <deal.II/lac/trilinos_solver.h>
 
 #include "navier_stokes_base.h"
-
 
 
 using namespace dealii;
@@ -71,7 +66,6 @@ private:
  * the flow is solved
  *
  * @ingroup solvers
- * @author Bruno Blais, 2019
  */
 
 template <int dim>

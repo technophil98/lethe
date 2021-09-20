@@ -1,5 +1,5 @@
 #include <solvers/free_surface.h>
-#include <solvers/gd_tracer.h>
+#include <solvers/dg_tracer.h>
 #include <solvers/gls_tracer.h>
 #include <solvers/heat_transfer.h>
 #include <solvers/multiphysics_interface.h>
@@ -32,10 +32,10 @@ MultiphysicsInterface<dim>::MultiphysicsInterface(
       physics[PhysicsID::gls_tracer] = std::make_shared<GLSTracer<dim>>(
         this, nsparam, p_triangulation, p_simulation_control);
     }
-  if (multiphysics_parameters.gd_tracer)
+  if (multiphysics_parameters.dg_tracer)
     {
-      active_physics.push_back(PhysicsID::gd_tracer);
-      physics[PhysicsID::gd_tracer] = std::make_shared<GDTracer<dim>>(
+      active_physics.push_back(PhysicsID::dg_tracer);
+      physics[PhysicsID::dg_tracer] = std::make_shared<DGTracer<dim>>(
         this, nsparam, p_triangulation, p_simulation_control);
     }
   if (multiphysics_parameters.free_surface)

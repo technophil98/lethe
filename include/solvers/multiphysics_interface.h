@@ -87,10 +87,10 @@ public:
               << "GLS Tracer" << std::endl
               << "-----------" << std::endl;
       }
-    else if (physics_id == PhysicsID::gd_tracer)
+    else if (physics_id == PhysicsID::dg_tracer)
       {
         pcout << "-----------" << std::endl
-              << "GD Tracer" << std::endl
+              << "DG Tracer" << std::endl
               << "-----------" << std::endl;
       }
     else if (physics_id == PhysicsID::free_surface)

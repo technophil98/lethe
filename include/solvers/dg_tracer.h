@@ -22,8 +22,8 @@
  * Author: Bruno Blais, Polytechnique Montreal, 2020-
  */
 
-#ifndef lethe_gd_tracer_h
-#define lethe_gd_tracer_h
+#ifndef lethe_dg_tracer_h
+#define lethe_dg_tracer_h
 
 #include <core/bdf.h>
 #include <core/simulation_control.h>
@@ -49,10 +49,10 @@
 
 
 template <int dim>
-class GDTracer : public AuxiliaryPhysics<dim, TrilinosWrappers::MPI::Vector>
+class DGTracer : public AuxiliaryPhysics<dim, TrilinosWrappers::MPI::Vector>
 {
 public:
-  GDTracer<dim>(MultiphysicsInterface<dim> *     multiphysics_interface,
+  DGTracer<dim>(MultiphysicsInterface<dim> *     multiphysics_interface,
                 const SimulationParameters<dim> &p_simulation_parameters,
                 std::shared_ptr<parallel::DistributedTriangulationBase<dim>>
                                                    p_triangulation,

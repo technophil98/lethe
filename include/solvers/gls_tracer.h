@@ -49,10 +49,10 @@
 
 
 template <int dim>
-class Tracer : public AuxiliaryPhysics<dim, TrilinosWrappers::MPI::Vector>
+class GLSTracer : public AuxiliaryPhysics<dim, TrilinosWrappers::MPI::Vector>
 {
 public:
-  Tracer<dim>(MultiphysicsInterface<dim> *     multiphysics_interface,
+  GLSTracer<dim>(MultiphysicsInterface<dim> *     multiphysics_interface,
               const SimulationParameters<dim> &p_simulation_parameters,
               std::shared_ptr<parallel::DistributedTriangulationBase<dim>>
                                                  p_triangulation,

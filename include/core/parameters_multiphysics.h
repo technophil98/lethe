@@ -36,7 +36,8 @@ namespace Parameters
   {
     bool fluid_dynamics;
     bool heat_transfer;
-    bool tracer;
+    bool gls_tracer;
+    bool gd_tracer;
     bool free_surface;
     bool buoyancy_force;
 
@@ -47,6 +48,7 @@ namespace Parameters
     declare_parameters(ParameterHandler &prm);
     void
     parse_parameters(ParameterHandler &prm);
+
   }; // namespace Parameters
 
 } // namespace Parameters

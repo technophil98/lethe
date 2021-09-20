@@ -61,8 +61,7 @@ end
 # Multiphysics
 #---------------------------------------------------
 subsection multiphysics
-	set tracer = false
-  set tracer = true
+	set gls tracer = true
 end
 
 # --------------------------------------------------

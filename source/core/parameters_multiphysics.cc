@@ -20,10 +20,15 @@ Parameters::Multiphysics::declare_parameters(ParameterHandler &prm)
                       Patterns::Bool(),
                       "Thermic calculation <true|false>");
 
-    prm.declare_entry("tracer",
+    prm.declare_entry("gls tracer",
                       "false",
                       Patterns::Bool(),
-                      "Passive tracer calculation <true|false>");
+                      "Passive gls tracer calculation <true|false>");
+
+    prm.declare_entry("gd tracer",
+                      "false",
+                      Patterns::Bool(),
+                      "Passive gd tracer calculation <true|false>");
 
     prm.declare_entry("free surface",
                       "false",
@@ -51,7 +56,8 @@ Parameters::Multiphysics::parse_parameters(ParameterHandler &prm)
   {
     fluid_dynamics = prm.get_bool("fluid dynamics");
     heat_transfer  = prm.get_bool("heat transfer");
-    tracer         = prm.get_bool("tracer");
+    gls_tracer     = prm.get_bool("gls tracer");
+    gd_tracer      = prm.get_bool("gd tracer");
     free_surface   = prm.get_bool("free surface");
     buoyancy_force = prm.get_bool("buoyancy force");
 

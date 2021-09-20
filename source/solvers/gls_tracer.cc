@@ -648,8 +648,8 @@ GLSTracer<dim>::setup_dofs()
 
   // Provide the tracer dof_handler and present solution pointers to the
   // multiphysics interface
-  multiphysics->set_dof_handler(PhysicsID::tracer, &this->dof_handler);
-  multiphysics->set_solution(PhysicsID::tracer, &this->present_solution);
+  multiphysics->set_dof_handler(PhysicsID::gls_tracer, &this->dof_handler);
+  multiphysics->set_solution(PhysicsID::gls_tracer, &this->present_solution);
 }
 
 template <int dim>
@@ -668,7 +668,7 @@ GLSTracer<dim>::set_initial_conditions()
 template <int dim>
 void
 GLSTracer<dim>::solve_linear_system(const bool initial_step,
-                                 const bool /*renewed_matrix*/)
+                                    const bool /*renewed_matrix*/)
 {
   auto mpi_communicator = triangulation->get_communicator();
 

@@ -30,8 +30,9 @@ enum PhysicsID : unsigned int
 {
   fluid_dynamics = 0,
   heat_transfer  = 1,
-  tracer         = 2,
-  free_surface   = 3
+  gls_tracer     = 2,
+  free_surface   = 3,
+  gd_tracer      = 4
 };
 
 #endif

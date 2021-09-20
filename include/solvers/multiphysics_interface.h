@@ -81,11 +81,17 @@ public:
               << "Heat Transfer" << std::endl
               << "--------------" << std::endl;
       }
-    else if (physics_id == PhysicsID::tracer)
+    else if (physics_id == PhysicsID::gls_tracer)
       {
-        pcout << "-------" << std::endl
-              << "Tracer" << std::endl
-              << "-------" << std::endl;
+        pcout << "-----------" << std::endl
+              << "GLS Tracer" << std::endl
+              << "-----------" << std::endl;
+      }
+    else if (physics_id == PhysicsID::gd_tracer)
+      {
+        pcout << "-----------" << std::endl
+              << "GD Tracer" << std::endl
+              << "-----------" << std::endl;
       }
     else if (physics_id == PhysicsID::free_surface)
       {

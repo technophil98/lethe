@@ -3,7 +3,7 @@
 #include <core/time_integration_utilities.h>
 #include <core/utilities.h>
 
-#include <solvers/gls_tracer.h>
+#include <solvers/gd_tracer.h>
 #include <solvers/tracer_assemblers.h>
 #include <solvers/tracer_scratch_data.h>
 
@@ -648,8 +648,8 @@ GDTracer<dim>::setup_dofs()
 
   // Provide the tracer dof_handler and present solution pointers to the
   // multiphysics interface
-  multiphysics->set_dof_handler(PhysicsID::tracer, &this->dof_handler);
-  multiphysics->set_solution(PhysicsID::tracer, &this->present_solution);
+  multiphysics->set_dof_handler(PhysicsID::gd_tracer, &this->dof_handler);
+  multiphysics->set_solution(PhysicsID::gd_tracer, &this->present_solution);
 }
 
 template <int dim>
@@ -668,7 +668,7 @@ GDTracer<dim>::set_initial_conditions()
 template <int dim>
 void
 GDTracer<dim>::solve_linear_system(const bool initial_step,
-                                 const bool /*renewed_matrix*/)
+                                   const bool /*renewed_matrix*/)
 {
   auto mpi_communicator = triangulation->get_communicator();
 

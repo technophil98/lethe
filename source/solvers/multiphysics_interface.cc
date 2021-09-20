@@ -1,7 +1,8 @@
 #include <solvers/free_surface.h>
+#include <solvers/gd_tracer.h>
+#include <solvers/gls_tracer.h>
 #include <solvers/heat_transfer.h>
 #include <solvers/multiphysics_interface.h>
-#include <solvers/gls_tracer.h>
 #include <solvers/vof.h>
 
 
@@ -25,10 +26,16 @@ MultiphysicsInterface<dim>::MultiphysicsInterface(
       physics[PhysicsID::heat_transfer] = std::make_shared<HeatTransfer<dim>>(
         this, nsparam, p_triangulation, p_simulation_control);
     }
-  if (multiphysics_parameters.tracer)
+  if (multiphysics_parameters.gls_tracer)
     {
-      active_physics.push_back(PhysicsID::tracer);
-      physics[PhysicsID::tracer] = std::make_shared<GLSTracer<dim>>(
+      active_physics.push_back(PhysicsID::gls_tracer);
+      physics[PhysicsID::gls_tracer] = std::make_shared<GLSTracer<dim>>(
+        this, nsparam, p_triangulation, p_simulation_control);
+    }
+  if (multiphysics_parameters.gd_tracer)
+    {
+      active_physics.push_back(PhysicsID::gd_tracer);
+      physics[PhysicsID::gd_tracer] = std::make_shared<GDTracer<dim>>(
         this, nsparam, p_triangulation, p_simulation_control);
     }
   if (multiphysics_parameters.free_surface)

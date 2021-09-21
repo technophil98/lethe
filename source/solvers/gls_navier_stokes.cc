@@ -909,8 +909,14 @@ GLSNavierStokesSolver<dim>::solve_system_GMRES(const bool   initial_step,
             true,
             true);
 
+          bool extra_verbose;
+          if (this->simulation_parameters.linear_solver.verbosity == Parameters::Verbosity::extra_verbose)
+            extra_verbose = true;
+          else
+            extra_verbose = false;
+
           TrilinosWrappers::SolverGMRES::AdditionalData solver_parameters(
-            false,
+            extra_verbose,
             this->simulation_parameters.linear_solver.max_krylov_vectors);
 
           if (!ilu_preconditioner)
@@ -988,13 +994,20 @@ GLSNavierStokesSolver<dim>::solve_system_BiCGStab(
             }
           TrilinosWrappers::MPI::Vector completely_distributed_solution(
             this->locally_owned_dofs, this->mpi_communicator);
+          bool extra_verbose;
+          if (this->simulation_parameters.linear_solver.verbosity == Parameters::Verbosity::extra_verbose)
+            extra_verbose = true;
+          else
+            extra_verbose = false;
+          TrilinosWrappers::SolverBicgstab::AdditionalData solver_parameters(
+            extra_verbose);
 
           SolverControl solver_control(
             this->simulation_parameters.linear_solver.max_iterations,
             linear_solver_tolerance,
             true,
             true);
-          TrilinosWrappers::SolverBicgstab solver(solver_control);
+          TrilinosWrappers::SolverBicgstab solver(solver_control,solver_parameters);
 
           if (!ilu_preconditioner)
             setup_preconditioner();
@@ -1073,8 +1086,14 @@ GLSNavierStokesSolver<dim>::solve_system_AMG(const bool   initial_step,
             true,
             true);
 
+          bool extra_verbose;
+          if (this->simulation_parameters.linear_solver.verbosity == Parameters::Verbosity::extra_verbose)
+            extra_verbose = true;
+          else
+            extra_verbose = false;
+
           TrilinosWrappers::SolverGMRES::AdditionalData solver_parameters(
-            false,
+            extra_verbose,
             this->simulation_parameters.linear_solver.max_krylov_vectors);
 
           TrilinosWrappers::SolverGMRES solver(solver_control,

@@ -404,6 +404,8 @@ Return a bool that describes  if a cell contains a specific point
   void
   integrate_particles();
 
+  virtual void
+  read_checkpoint() override;
 
 
   /**
@@ -478,6 +480,7 @@ Return a bool that describes  if a cell contains a specific point
   /**
    * Members
    */
+
 private:
 
   std::map<unsigned int,

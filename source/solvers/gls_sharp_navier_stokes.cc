@@ -1599,7 +1599,7 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
           for (unsigned int qf = 0; qf < n_q_points; ++qf)
             sum_line += fe_values.JxW(qf);
 
-          sum_line = sum_line / dt;
+          sum_line = 1;
           // Clear the line in the matrix
           unsigned int inside_index = local_dof_indices[dim];
           // Check on which DOF of the cell to impose the pressure. If the dof
@@ -1647,8 +1647,8 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
           // Define the order of magnitude for the stencil.
           for (unsigned int qf = 0; qf < n_q_points; ++qf)
             sum_line += fe_values.JxW(qf);
-
           sum_line = sum_line / dt;
+
 
 
           cell->get_dof_indices(local_dof_indices);
@@ -1690,6 +1690,7 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
                       // loops on the dof that are for vx or vy separately
                       // loops on all the dof of the cell that represent
                       // a specific component
+
 
 
                       // Define which dof is going to be redefined
@@ -1997,9 +1998,12 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
             }
         }
     }
+  MPI_Barrier(this->mpi_communicator);
+
+  this->system_rhs.compress(VectorOperation::insert);
 
   this->system_matrix.compress(VectorOperation::insert);
-  this->system_rhs.compress(VectorOperation::insert);
+
 }
 
 
@@ -2517,12 +2521,13 @@ GLSSharpNavierStokesSolver<dim>::solve()
 
       this->postprocess_fd(false);
 
-      this->finish_time_step();
+
 
       if (this->simulation_parameters.particlesParameters->calculate_force_ib)
         force_on_ib();
       finish_time_step_particles();
       write_force_ib();
+      this->finish_time_step();
     }
 
   if (this->simulation_parameters.particlesParameters->calculate_force_ib)

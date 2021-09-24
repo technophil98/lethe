@@ -629,7 +629,7 @@ DGTracer<dim>::setup_dofs()
 
   // Sparse matrices initialization
   DynamicSparsityPattern dsp(this->dof_handler.n_dofs());
-  DoFTools::make_sparsity_pattern(this->dof_handler,
+  DoFTools::make_flux_sparsity_pattern(this->dof_handler,
                                   dsp,
                                   nonzero_constraints,
                                   /*keep_constrained_dofs = */ true);

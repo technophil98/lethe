@@ -39,14 +39,19 @@
 #include <deal.II/distributed/solution_transfer.h>
 #include <deal.II/distributed/tria_base.h>
 
-#include <deal.II/fe/fe_q.h>
-#include <deal.II/fe/fe_simplex_p.h>
+#include <deal.II/fe/fe_dgq.h>
+#include <deal.II/fe/fe_interface_values.h>
 #include <deal.II/fe/mapping_fe.h>
 #include <deal.II/fe/mapping_q.h>
 
+#include <deal.II/lac/precondition_block.h>
+#include <deal.II/lac/solver_richardson.h>
 #include <deal.II/lac/trilinos_sparse_matrix.h>
 #include <deal.II/lac/trilinos_vector.h>
 
+#include <deal.II/meshworker/mesh_loop.h>
+
+#include <deal.II/numerics/derivative_approximation.h>
 
 template <int dim>
 class DGTracer : public AuxiliaryPhysics<dim, TrilinosWrappers::MPI::Vector>
@@ -67,22 +72,16 @@ public:
     , solution_transfer(dof_handler)
   {
     if (simulation_parameters.mesh.simplex)
-      {
-        // for simplex meshes
-        fe = std::make_shared<FE_SimplexP<dim>>(
-          simulation_parameters.fem_parameters.tracer_order);
-        mapping         = std::make_shared<MappingFE<dim>>(*fe);
-        cell_quadrature = std::make_shared<QGaussSimplex<dim>>(fe->degree + 1);
-      }
-    else
-      {
-        // Usual case, for quad/hex meshes
-        fe = std::make_shared<FE_Q<dim>>(
-          simulation_parameters.fem_parameters.tracer_order);
-        mapping = std::make_shared<MappingQ<dim>>(
-          fe->degree, simulation_parameters.fem_parameters.qmapping_all);
-        cell_quadrature = std::make_shared<QGauss<dim>>(fe->degree + 1);
-      }
+      throw std::runtime_error(
+        "Simplex grids are not supported for DG Tracer.");
+
+    // Usual case, for quad/hex meshes
+    fe = std::make_shared<FE_Q<dim>>(
+      simulation_parameters.fem_parameters.tracer_order);
+    mapping = std::make_shared<MappingQ<dim>>(
+      fe->degree, simulation_parameters.fem_parameters.qmapping_all);
+    cell_quadrature = std::make_shared<QGauss<dim>>(fe->degree + 1);
+    face_quadrature = std::make_shared<QGauss<dim-1>>(fe->degree + 1);
 
     // Set size of previous solutions using BDF schemes information
     previous_solutions.resize(maximum_number_of_previous_solutions());
@@ -344,8 +343,9 @@ private:
   // Finite element spce
   std::shared_ptr<FiniteElement<dim>> fe;
   // Mapping and Quadrature
-  std::shared_ptr<Mapping<dim>>    mapping;
-  std::shared_ptr<Quadrature<dim>> cell_quadrature;
+  std::shared_ptr<Mapping<dim>>        mapping;
+  std::shared_ptr<Quadrature<dim>>     cell_quadrature;
+  std::shared_ptr<Quadrature<dim - 1>> face_quadrature;
 
 
   ConvergenceTable error_table;

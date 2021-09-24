@@ -572,6 +572,9 @@ private:
   std::map<unsigned int, std::map<unsigned int, contact_tangential_history>>
     contact_map;
   TableHandler table_residual;
+    pp_contact_map;
+  std::map<unsigned int, std::map<unsigned int, contact_tangential_history>>
+    pw_contact_map;
 
   IBParticlesDEM<dim> ib_dem;
 

@@ -96,6 +96,14 @@ test()
                                                           flat_cell,
                                                           vertice_to_cell);
 
+  std::sort(cells_cut.begin(),
+            cells_cut.end(),
+            [](typename DoFHandler<2>::active_cell_iterator cell_1,
+               typename DoFHandler<2>::active_cell_iterator cell_2) {
+              return cell_1->global_active_cell_index() <
+                     cell_2->global_active_cell_index();
+            });
+
   Vector<double> subdomain(triangulation.n_active_cells());
   for (unsigned int i = 0; i < cells_cut.size(); ++i)
     {
@@ -109,10 +117,10 @@ test()
     // Printing the final position for all the vertices
 
 #if DEAL_II_VERSION_GTE(9, 3, 0)
-  Legacy::DataOut<2> data_out;
+  Legacy::DataOut<2>                   data_out;
   Legacy::DataOut<1, DoFHandler<1, 2>> flat_data_out;
 #else
-  DataOut<2> data_out;
+  DataOut<2>    data_out;
   DataOut<1, 2> flat_data_out;
 #endif
   data_out.attach_dof_handler(dof_handler);

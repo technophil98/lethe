@@ -72,8 +72,6 @@ public:
  *
  * @ingroup assemblers
  */
-
-
 template <int dim>
 class TracerAssemblerCore : public TracerAssemblerBase<dim>
 {
@@ -104,6 +102,48 @@ public:
                StabilizedMethodsCopyData &copy_data) override;
 
   const bool DCDD = true;
+
+  std::shared_ptr<SimulationControl> simulation_control;
+  Parameters::PhysicalProperties     physical_properties;
+};
+
+/**
+ * @brief Class that assembles the core of the Tracer equation.
+ * This class assembles the weak form of:
+ * $$\mathbf{u} \cdot \nabla T - D \nabla^2 =0 $$ with an SUPG
+ * stabilziation
+ *
+ * @tparam dim An integer that denotes the number of spatial dimensions
+ *
+ * @ingroup assemblers
+ */
+template <int dim>
+class DGTracerAssemblerCore : public TracerAssemblerBase<dim>
+{
+public:
+  DGTracerAssemblerCore(std::shared_ptr<SimulationControl> simulation_control,
+                        Parameters::PhysicalProperties     physical_properties)
+    : simulation_control(simulation_control)
+    , physical_properties(physical_properties)
+  {}
+
+  /**
+   * @brief assemble_matrix Assembles the matrix
+   * @param scratch_data (see base class)
+   * @param copy_data (see base class)
+   */
+  virtual void
+  assemble_matrix(TracerScratchData<dim> &   scratch_data,
+                  StabilizedMethodsCopyData &copy_data) override;
+
+  /**
+   * @brief assemble_rhs Assembles the rhs
+   * @param scratch_data (see base class)
+   * @param copy_data (see base class)
+   */
+  virtual void
+  assemble_rhs(TracerScratchData<dim> &   scratch_data,
+               StabilizedMethodsCopyData &copy_data) override;
 
   std::shared_ptr<SimulationControl> simulation_control;
   Parameters::PhysicalProperties     physical_properties;

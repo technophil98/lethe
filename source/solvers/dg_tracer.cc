@@ -39,7 +39,7 @@ DGTracer<dim>::setup_assemblers()
         std::make_shared<TracerAssemblerBDF<dim>>(this->simulation_control));
     }
   // Core assembler
-  this->assemblers.push_back(std::make_shared<TracerAssemblerCore<dim>>(
+  this->assemblers.push_back(std::make_shared<DGTracerAssemblerCore<dim>>(
     this->simulation_control, this->simulation_parameters.physical_properties));
 }
 
@@ -630,9 +630,9 @@ DGTracer<dim>::setup_dofs()
   // Sparse matrices initialization
   DynamicSparsityPattern dsp(this->dof_handler.n_dofs());
   DoFTools::make_flux_sparsity_pattern(this->dof_handler,
-                                  dsp,
-                                  nonzero_constraints,
-                                  /*keep_constrained_dofs = */ true);
+                                       dsp,
+                                       nonzero_constraints,
+                                       /*keep_constrained_dofs = */ true);
 
   SparsityTools::distribute_sparsity_pattern(dsp,
                                              locally_owned_dofs,

@@ -52,3 +52,5 @@ TracerScratchData<dim>::allocate()
 
 template class TracerScratchData<2>;
 template class TracerScratchData<3>;
+template class DGTracerScratchData<2>;
+template class DGTracerScratchData<3>;

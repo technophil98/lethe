@@ -76,12 +76,12 @@ public:
         "Simplex grids are not supported for DG Tracer.");
 
     // Usual case, for quad/hex meshes
-    fe = std::make_shared<FE_Q<dim>>(
+    fe = std::make_shared<FE_DGQ<dim>>(
       simulation_parameters.fem_parameters.tracer_order);
     mapping = std::make_shared<MappingQ<dim>>(
       fe->degree, simulation_parameters.fem_parameters.qmapping_all);
     cell_quadrature = std::make_shared<QGauss<dim>>(fe->degree + 1);
-    face_quadrature = std::make_shared<QGauss<dim-1>>(fe->degree + 1);
+    face_quadrature = std::make_shared<QGauss<dim - 1>>(fe->degree + 1);
 
     // Set size of previous solutions using BDF schemes information
     previous_solutions.resize(maximum_number_of_previous_solutions());

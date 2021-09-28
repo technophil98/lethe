@@ -23,6 +23,7 @@
 #include <deal.II/dofs/dof_renumbering.h>
 #include <deal.II/dofs/dof_tools.h>
 
+#include <deal.II/fe/fe_interface_values.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/mapping.h>
@@ -57,7 +58,6 @@ using namespace dealii;
  * the flow is solved
  *  @ingroup solvers
  **/
-
 template <int dim>
 class TracerScratchData
 {
@@ -78,12 +78,13 @@ public:
   TracerScratchData(const FiniteElement<dim> &fe_tracer,
                     const Quadrature<dim> &   quadrature,
                     const Mapping<dim> &      mapping,
-                    const FiniteElement<dim> &fe_navier_stokes)
-    : fe_values_tracer(mapping,
-                       fe_tracer,
-                       quadrature,
-                       update_values | update_quadrature_points |
-                         update_JxW_values | update_gradients | update_hessians)
+                    const FiniteElement<dim> &fe_navier_stokes,
+                    const UpdateFlags &       update_flags = update_values |
+                                                      update_quadrature_points |
+                                                      update_JxW_values |
+                                                      update_gradients |
+                                                      update_hessians)
+    : fe_values_tracer(mapping, fe_tracer, quadrature, update_flags)
     , fe_values_navier_stokes(mapping,
                               fe_navier_stokes,
                               quadrature,
@@ -252,6 +253,88 @@ public:
   // This FEValues must mandatorily be instantiated for the velocity
   FEValues<dim>               fe_values_navier_stokes;
   std::vector<Tensor<1, dim>> velocity_values;
+};
+
+/**
+ * @brief DGTracerScratchData class
+ * stores the information required by the assembly procedure
+ * for a Tracer advection-diffusion equation with discontinuous Galerkin
+ *formulation
+ *
+ * @tparam dim An integer that denotes the dimension of the space in which
+ * the flow is solved
+ *  @ingroup solvers
+ **/
+template <int dim>
+class DGTracerScratchData : TracerScratchData<dim>
+{
+public:
+  /**
+   * @brief Constructor. The constructor creates the fe_values that will be used
+   * to fill the member variables of the scratch. It also allocated the
+   * necessary memory for all member variables. However, it does not do any
+   * evalution, since this needs to be done at the cell level.
+   *
+   * @param fe The FESystem used to solve the Navier-Stokes equations
+   *
+   * @param quadrature The quadrature to use for the assembly
+   *
+   * @param mapping The mapping of the domain in which the Navier-Stokes equations are solved
+   *
+   */
+  DGTracerScratchData(
+    const FiniteElement<dim> & fe_tracer,
+    const Quadrature<dim> &    quadrature,
+    const Quadrature<dim - 1> &face_quadrature,
+    const Mapping<dim> &       mapping,
+    const FiniteElement<dim> & fe_navier_stokes,
+    const UpdateFlags &update_flags = update_values | update_quadrature_points |
+                                      update_JxW_values | update_gradients |
+                                      update_hessians,
+    const UpdateFlags &interface_update_flags =
+      update_values | update_quadrature_points | update_JxW_values |
+      update_gradients | update_hessians | update_normal_vectors)
+    : TracerScratchData<dim>(fe_tracer,
+                             quadrature,
+                             mapping,
+                             fe_navier_stokes,
+                             update_flags)
+    , fe_interface_values_tracer(mapping,
+                                 fe_tracer,
+                                 face_quadrature,
+                                 interface_update_flags)
+  {
+    this->allocate();
+  }
+
+  /**
+   * @brief Copy Constructor. Same as the main constructor.
+   *  This constructor only uses the other scratch to build the FeValues, it
+   * does not copy the content of the other scratch into itself since, by
+   * definition of the WorkStream mechanism it is assumed that the content of
+   * the scratch will be reset on a cell basis.
+   *
+   * @param fe The FESystem used to solve the Navier-Stokes equations
+   *
+   * @param quadrature The quadrature to use for the assembly
+   *
+   * @param mapping The mapping of the domain in which the Navier-Stokes equations are solved
+   */
+  DGTracerScratchData(const DGTracerScratchData<dim> &sd)
+    : TracerScratchData<dim>(sd)
+    , fe_interface_values_tracer(sd.fe_interface_values_tracer.get_mapping(),
+                                 sd.fe_interface_values_tracer.get_fe(),
+                                 sd.fe_interface_values_tracer.get_quadrature(),
+                                 update_values | update_quadrature_points |
+                                   update_JxW_values | update_gradients |
+                                   update_hessians | update_normal_vectors)
+  {
+    this->allocate();
+  }
+
+
+  // FEValues for the Tracer problem
+  FEInterfaceValues<dim> fe_interface_values_tracer;
 };
 
 #endif

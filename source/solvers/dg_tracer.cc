@@ -229,7 +229,7 @@ template <int dim>
 void
 DGTracer<dim>::attach_solution_to_output(DataOut<dim> &data_out)
 {
-  data_out.add_data_vector(dof_handler, present_solution, "dg tracer");
+  data_out.add_data_vector(dof_handler, present_solution, "dg_tracer");
 }
 
 template <int dim>

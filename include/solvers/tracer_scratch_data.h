@@ -266,7 +266,7 @@ public:
  *  @ingroup solvers
  **/
 template <int dim>
-class DGTracerScratchData : TracerScratchData<dim>
+class DGTracerScratchData : public TracerScratchData<dim>
 {
 public:
   /**

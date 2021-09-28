@@ -275,7 +275,7 @@ private:
   virtual void
   assemble_local_system_matrix(
     const typename DoFHandler<dim>::active_cell_iterator &cell,
-    TracerScratchData<dim> &                              scratch_data,
+    DGTracerScratchData<dim> &                            scratch_data,
     StabilizedMethodsCopyData &                           copy_data);
 
   /**
@@ -294,7 +294,7 @@ private:
   virtual void
   assemble_local_system_rhs(
     const typename DoFHandler<dim>::active_cell_iterator &cell,
-    TracerScratchData<dim> &                              scratch_data,
+    DGTracerScratchData<dim> &                            scratch_data,
     StabilizedMethodsCopyData &                           copy_data);
 
   /**

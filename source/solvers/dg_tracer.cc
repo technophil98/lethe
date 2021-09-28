@@ -53,10 +53,11 @@ DGTracer<dim>::assemble_system_matrix()
   const DoFHandler<dim> *dof_handler_fluid =
     multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
 
-  auto scratch_data = TracerScratchData<dim>(*this->fe,
-                                             *this->cell_quadrature,
-                                             *this->mapping,
-                                             dof_handler_fluid->get_fe());
+  auto scratch_data = DGTracerScratchData<dim>(*this->fe,
+                                               *this->cell_quadrature,
+                                               *this->face_quadrature,
+                                               *this->mapping,
+                                               dof_handler_fluid->get_fe());
 
   WorkStream::run(this->dof_handler.begin_active(),
                   this->dof_handler.end(),
@@ -74,7 +75,7 @@ template <int dim>
 void
 DGTracer<dim>::assemble_local_system_matrix(
   const typename DoFHandler<dim>::active_cell_iterator &cell,
-  TracerScratchData<dim> &                              scratch_data,
+  DGTracerScratchData<dim> &                            scratch_data,
   StabilizedMethodsCopyData &                           copy_data)
 {
   copy_data.cell_is_local = cell->is_locally_owned();
@@ -144,10 +145,11 @@ DGTracer<dim>::assemble_system_rhs()
   const DoFHandler<dim> *dof_handler_fluid =
     multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
 
-  auto scratch_data = TracerScratchData<dim>(*this->fe,
-                                             *this->cell_quadrature,
-                                             *this->mapping,
-                                             dof_handler_fluid->get_fe());
+  auto scratch_data = DGTracerScratchData<dim>(*this->fe,
+                                               *this->cell_quadrature,
+                                               *this->face_quadrature,
+                                               *this->mapping,
+                                               dof_handler_fluid->get_fe());
 
   WorkStream::run(this->dof_handler.begin_active(),
                   this->dof_handler.end(),
@@ -165,7 +167,7 @@ template <int dim>
 void
 DGTracer<dim>::assemble_local_system_rhs(
   const typename DoFHandler<dim>::active_cell_iterator &cell,
-  TracerScratchData<dim> &                              scratch_data,
+  DGTracerScratchData<dim> &                            scratch_data,
   StabilizedMethodsCopyData &                           copy_data)
 {
   copy_data.cell_is_local = cell->is_locally_owned();

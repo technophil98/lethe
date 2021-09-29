@@ -37,6 +37,13 @@
 using namespace dealii;
 
 
+enum LoopID : unsigned int
+{
+  cell     = 0,
+  face     = 1,
+  boundary = 2
+};
+
 /**
  * @brief TracerScratchData class
  * stores the information required by the assembly procedure
@@ -304,7 +311,7 @@ public:
                                  face_quadrature,
                                  interface_update_flags)
   {
-    //TODO this->allocate();
+    // TODO this->allocate();
   }
 
   /**
@@ -329,12 +336,17 @@ public:
                                    update_JxW_values | update_gradients |
                                    update_hessians | update_normal_vectors)
   {
-     //TODO this->allocate();
+    // TODO this->allocate();
   }
 
 
   // FEValues for the Tracer problem
   FEInterfaceValues<dim> fe_interface_values_tracer;
+
+  // ID for the geometric entity we add the contribution of
+  LoopID geometric_entity;
 };
+
+
 
 #endif

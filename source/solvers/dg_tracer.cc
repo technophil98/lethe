@@ -24,6 +24,8 @@
 #include <deal.II/lac/trilinos_precondition.h>
 #include <deal.II/lac/trilinos_solver.h>
 
+#include <deal.II/meshworker/mesh_loop.h>
+
 #include <deal.II/numerics/vector_tools.h>
 
 template <int dim>
@@ -59,17 +61,56 @@ DGTracer<dim>::assemble_system_matrix()
                                                *this->mapping,
                                                dof_handler_fluid->get_fe());
 
-  WorkStream::run(this->dof_handler.begin_active(),
-                  this->dof_handler.end(),
-                  *this,
-                  &DGTracer::assemble_local_system_matrix,
-                  &DGTracer::copy_local_matrix_to_global_matrix,
-                  scratch_data,
-                  StabilizedMethodsCopyData(this->fe->n_dofs_per_cell(),
-                                            this->cell_quadrature->size()));
+  using Iterator = typename DoFHandler<dim>::active_cell_iterator;
+
+  const auto cell_worker = [&](const Iterator &           cell,
+                               DGTracerScratchData<dim> & scratch_data,
+                               StabilizedMethodsCopyData &copy_data) {
+    scratch_data.geometric_entity = LoopID::cell;
+    DGTracer::assemble_local_system_matrix(cell, scratch_data, copy_data);
+  };
+
+  const auto face_worker = [&](const Iterator &           cell,
+                               const unsigned int &       f,
+                               const unsigned int &       sf,
+                               const Iterator &           ncell,
+                               const unsigned int &       nf,
+                               const unsigned int &       nsf,
+                               DGTracerScratchData<dim> & scratch_data,
+                               StabilizedMethodsCopyData &copy_data) {
+    scratch_data.geometric_entity = LoopID::face;
+    DGTracer::assemble_local_system_matrix(cell, scratch_data, copy_data);
+  };
+
+  const auto boundary_worker = [&](const Iterator &           cell,
+                                   const unsigned int &       face_no,
+                                   DGTracerScratchData<dim> & scratch_data,
+                                   StabilizedMethodsCopyData &copy_data) {
+    scratch_data.geometric_entity = LoopID::boundary;
+    DGTracer::assemble_local_system_matrix(cell, scratch_data, copy_data);
+  };
+
+  const auto copier = [&](const StabilizedMethodsCopyData &copy_data) {
+    DGTracer::copy_local_matrix_to_global_matrix(copy_data);
+  };
+
+  MeshWorker::mesh_loop(
+    this->dof_handler.begin_active(),
+    this->dof_handler.end(),
+    cell_worker,
+    copier,
+    scratch_data,
+    StabilizedMethodsCopyData(this->fe->n_dofs_per_cell(),
+                              this->cell_quadrature->size()),
+    MeshWorker::assemble_own_cells | MeshWorker::assemble_boundary_faces |
+      MeshWorker::assemble_own_interior_faces_once,
+    boundary_worker,
+    face_worker);
 
   system_matrix.compress(VectorOperation::add);
 }
+
+
 
 template <int dim>
 void

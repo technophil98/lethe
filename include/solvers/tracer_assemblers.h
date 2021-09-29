@@ -118,13 +118,12 @@ public:
  * @ingroup assemblers
  */
 template <int dim>
-class DGTracerAssemblerCore : public TracerAssemblerBase<dim>
+class DGTracerAssemblerCore : public TracerAssemblerCore<dim>
 {
 public:
   DGTracerAssemblerCore(std::shared_ptr<SimulationControl> simulation_control,
                         Parameters::PhysicalProperties     physical_properties)
-    : simulation_control(simulation_control)
-    , physical_properties(physical_properties)
+    : TracerAssemblerCore<dim>(simulation_control, physical_properties)
   {}
 
   /**
@@ -133,8 +132,8 @@ public:
    * @param copy_data (see base class)
    */
   virtual void
-  assemble_matrix(DGTracerScratchData<dim> &   scratch_data,
-                  StabilizedMethodsCopyData &copy_data) override;
+  assemble_matrix(DGTracerScratchData<dim> & scratch_data,
+                  StabilizedMethodsCopyData &copy_data);
 
   /**
    * @brief assemble_rhs Assembles the rhs
@@ -142,13 +141,8 @@ public:
    * @param copy_data (see base class)
    */
   virtual void
-  assemble_rhs(DGTracerScratchData<dim> &   scratch_data,
-               StabilizedMethodsCopyData &copy_data) override;
-
-    const bool DCDD = true; //TODO VERFIFIER SI POSSIBLE OU NECESSAIRE
-
-  std::shared_ptr<SimulationControl> simulation_control;
-  Parameters::PhysicalProperties     physical_properties;
+  assemble_rhs(DGTracerScratchData<dim> & scratch_data,
+               StabilizedMethodsCopyData &copy_data);
 };
 
 /**

@@ -133,7 +133,7 @@ public:
    * @param copy_data (see base class)
    */
   virtual void
-  assemble_matrix(TracerScratchData<dim> &   scratch_data,
+  assemble_matrix(DGTracerScratchData<dim> &   scratch_data,
                   StabilizedMethodsCopyData &copy_data) override;
 
   /**
@@ -142,8 +142,10 @@ public:
    * @param copy_data (see base class)
    */
   virtual void
-  assemble_rhs(TracerScratchData<dim> &   scratch_data,
+  assemble_rhs(DGTracerScratchData<dim> &   scratch_data,
                StabilizedMethodsCopyData &copy_data) override;
+
+    const bool DCDD = true; //TODO VERFIFIER SI POSSIBLE OU NECESSAIRE
 
   std::shared_ptr<SimulationControl> simulation_control;
   Parameters::PhysicalProperties     physical_properties;

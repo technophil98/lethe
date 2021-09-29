@@ -304,7 +304,7 @@ public:
                                  face_quadrature,
                                  interface_update_flags)
   {
-    this->allocate();
+    //TODO this->allocate();
   }
 
   /**
@@ -329,7 +329,7 @@ public:
                                    update_JxW_values | update_gradients |
                                    update_hessians | update_normal_vectors)
   {
-    this->allocate();
+     //TODO this->allocate();
   }
 
 

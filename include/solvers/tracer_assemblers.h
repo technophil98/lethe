@@ -108,44 +108,6 @@ public:
 };
 
 /**
- * @brief Class that assembles the core of the Tracer equation.
- * This class assembles the weak form of:
- * $$\mathbf{u} \cdot \nabla T - D \nabla^2 =0 $$ with an SUPG
- * stabilziation
- *
- * @tparam dim An integer that denotes the number of spatial dimensions
- *
- * @ingroup assemblers
- */
-template <int dim>
-class DGTracerAssemblerCore : public TracerAssemblerCore<dim>
-{
-public:
-  DGTracerAssemblerCore(std::shared_ptr<SimulationControl> simulation_control,
-                        Parameters::PhysicalProperties     physical_properties)
-    : TracerAssemblerCore<dim>(simulation_control, physical_properties)
-  {}
-
-  /**
-   * @brief assemble_matrix Assembles the matrix
-   * @param scratch_data (see base class)
-   * @param copy_data (see base class)
-   */
-  virtual void
-  assemble_matrix(DGTracerScratchData<dim> & scratch_data,
-                  StabilizedMethodsCopyData &copy_data);
-
-  /**
-   * @brief assemble_rhs Assembles the rhs
-   * @param scratch_data (see base class)
-   * @param copy_data (see base class)
-   */
-  virtual void
-  assemble_rhs(DGTracerScratchData<dim> & scratch_data,
-               StabilizedMethodsCopyData &copy_data);
-};
-
-/**
  * @brief Class that assembles the transient time arising from BDF time
  * integration for the Tracer equations. For example, if a BDF1 scheme is
  * chosen, the following is assembled

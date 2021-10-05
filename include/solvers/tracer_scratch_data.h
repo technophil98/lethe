@@ -332,7 +332,7 @@ public:
    *
    * @param mapping The mapping of the domain in which the Navier-Stokes equations are solved
    */
-  DGTracerScratchData(const TracerScratchData<dim> &sd)
+  DGTracerScratchData(const DGTracerScratchData<dim> &sd)
     : fe_values_tracer(sd.fe_values_tracer.get_mapping(),
                        sd.fe_values_tracer.get_fe(),
                        sd.fe_values_tracer.get_quadrature(),

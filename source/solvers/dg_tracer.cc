@@ -28,1221 +28,1148 @@
 
 #include <deal.II/numerics/vector_tools.h>
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::setup_assemblers()
-{
-  this->assemblers.clear();
+DGTracer<dim>::setup_assemblers() {
+    this->assemblers.clear();
 
-  // Time-stepping schemes
-  if (is_bdf(this->simulation_control->get_assembly_method()))
-    {
-      this->assemblers.push_back(
-        std::make_shared<TracerAssemblerBDF<dim>>(this->simulation_control));
+    // Time-stepping schemes
+    if (is_bdf(this->simulation_control->get_assembly_method())) {
+        this->assemblers.push_back(
+                std::make_shared<TracerAssemblerBDF<dim>>(this->simulation_control));
     }
-  // Core assembler
-  /* No assembler per se for the core: this assembly will be inside this .cc
-   file
-   * this->assemblers.push_back(std::make_shared<DGTracerAssemblerCore<dim>>(
-    this->simulation_control, this->simulation_parameters.physical_properties));
-    */
+    // Core assembler
+    /* No assembler per se for the core: this assembly will be inside this .cc
+     file
+     * this->assemblers.push_back(std::make_shared<DGTracerAssemblerCore<dim>>(
+      this->simulation_control, this->simulation_parameters.physical_properties));
+      */
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::assemble_system_matrix()
-{
-  this->system_matrix = 0;
-  setup_assemblers();
-
-  const DoFHandler<dim> *dof_handler_fluid =
-    multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
-
-  auto scratch_data = DGTracerScratchData<dim>(*this->fe,
-                                               *this->cell_quadrature,
-                                               *this->face_quadrature,
-                                               *this->mapping,
-                                               dof_handler_fluid->get_fe());
-
-  using Iterator = typename DoFHandler<dim>::active_cell_iterator;
-
-  const auto cell_worker = [&](const Iterator &          cell,
-                               DGTracerScratchData<dim> &scratch_data,
-                               DGMethodsCopyData &       copy_data) {
-    copy_data.cell_is_local = cell->is_locally_owned();
-    if (!cell->is_locally_owned())
-      return;
-
-    auto &source_term = simulation_parameters.source_term->tracer_source;
-    source_term.set_time(simulation_control->get_current_time());
-
-    scratch_data.reinit(cell,
-                        this->evaluation_point,
-                        this->previous_solutions,
-                        this->solution_stages,
-                        &source_term);
+DGTracer<dim>::assemble_system_matrix() {
+    this->system_matrix = 0;
+    setup_assemblers();
 
     const DoFHandler<dim> *dof_handler_fluid =
-      multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
+            multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
+    std::cout << "before scratch data initialization" << std::endl;
+    auto scratch_data = DGTracerScratchData<dim>(*this->fe,
+                                                 *this->cell_quadrature,
+                                                 *this->face_quadrature,
+                                                 *this->mapping,
+                                                 dof_handler_fluid->get_fe());
 
-    typename DoFHandler<dim>::active_cell_iterator velocity_cell(
-      &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
+    std::cout << "after scratch data initialization" << std::endl;
+    using Iterator = typename DoFHandler<dim>::active_cell_iterator;
 
-    if (multiphysics->fluid_dynamics_is_block())
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_block_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-    else
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-    copy_data.reset();
+    const auto cell_worker = [&](const Iterator &cell,
+                                 DGTracerScratchData<dim> &scratch_data,
+                                 DGMethodsCopyData &copy_data) {
+        std::cout << "cell_worker matrix" << std::endl;
+        copy_data.cell_is_local = cell->is_locally_owned();
+        if (!cell->is_locally_owned())
+            return;
 
-    {
-      // Scheme and physical properties
-      const double diffusivity =
-        this->simulation_parameters.physical_properties.tracer_diffusivity;
-      const auto method = this->simulation_control->get_assembly_method();
+        auto &source_term = simulation_parameters.source_term->tracer_source;
+        source_term.set_time(simulation_control->get_current_time());
 
-      // Loop and quadrature informations
-      const auto &       JxW_vec    = scratch_data.cell_JxW;
-      const unsigned int n_q_points = scratch_data.cell_n_q_points;
-      const unsigned int n_dofs     = scratch_data.cell_n_dofs;
-      const double       h          = scratch_data.cell_size;
+        scratch_data.reinit_cell(cell,
+                                 this->evaluation_point,
+                                 this->previous_solutions,
+                                 this->solution_stages,
+                                 &source_term);
 
-      // Copy data elements
-      auto &local_matrix = copy_data.local_matrix;
+        const DoFHandler<dim> *dof_handler_fluid =
+                multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
 
-      // assembling local matrix and right hand side
-      for (unsigned int q = 0; q < n_q_points; ++q)
+        typename DoFHandler<dim>::active_cell_iterator velocity_cell(
+                &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
+
+        if (multiphysics->fluid_dynamics_is_block()) {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_block_solution(
+                                                 PhysicsID::fluid_dynamics));
+        } else {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_solution(
+                                                 PhysicsID::fluid_dynamics));
+        }
+        copy_data.reset();
+
         {
-          // Gather into local variables the relevant fields
-          const Tensor<1, dim> tracer_gradient =
-            scratch_data.cell_tracer_gradients[q];
-          const Tensor<1, dim> velocity = scratch_data.cell_velocity_values[q];
+            // Scheme and physical properties
+            const double diffusivity =
+                    this->simulation_parameters.physical_properties.tracer_diffusivity;
+            const auto method = this->simulation_control->get_assembly_method();
 
-          // Store JxW in local variable for faster access;
-          const double JxW = JxW_vec[q];
+            // Loop and quadrature informations
+            const auto &JxW_vec = scratch_data.cell_JxW;
+            const unsigned int n_q_points = scratch_data.cell_n_q_points;
+            const unsigned int n_dofs = scratch_data.cell_n_dofs;
+            const double h = scratch_data.cell_size;
 
-          for (unsigned int i = 0; i < n_dofs; ++i)
-            {
-              const auto phi_T_i      = scratch_data.cell_phi[q][i];
-              const auto grad_phi_T_i = scratch_data.cell_grad_phi[q][i];
+            // Copy data elements
+            auto &local_matrix = copy_data.local_matrix;
 
-              for (unsigned int j = 0; j < n_dofs; ++j)
-                {
-                  const Tensor<1, dim> grad_phi_T_j =
-                    scratch_data.cell_grad_phi[q][j];
+            // assembling local matrix and right hand side
+            for (unsigned int q = 0; q < n_q_points; ++q) {
+                // Gather into local variables the relevant fields
+                const Tensor<1, dim> tracer_gradient =
+                        scratch_data.cell_tracer_gradients[q];
+                const Tensor<1, dim> velocity = scratch_data.cell_velocity_values[q];
 
-                  // Weak form : - D * laplacian T +  u * gradT - f=0
-                  local_matrix(i, j) +=
-                    (diffusivity * grad_phi_T_i * grad_phi_T_j -
-                     phi_T_i * velocity * grad_phi_T_j) *
-                    JxW;
-                }
-            }
-        } // end loop on quadrature points
-    }
+                // Store JxW in local variable for faster access;
+                const double JxW = JxW_vec[q];
 
-    for (auto &assembler : this->assemblers)
-      {
-        // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
-        // assembler->assemble_matrix(scratch_data, copy_data);
-      }
+                for (unsigned int i = 0; i < n_dofs; ++i) {
+                    const auto phi_T_i = scratch_data.cell_phi[q][i];
+                    const auto grad_phi_T_i = scratch_data.cell_grad_phi[q][i];
 
+                    for (unsigned int j = 0; j < n_dofs; ++j) {
+                        const Tensor<1, dim> grad_phi_T_j =
+                                scratch_data.cell_grad_phi[q][j];
 
-
-    cell->get_dof_indices(copy_data.local_dof_indices);
-  };
-
-  const auto face_worker = [&](const Iterator &          cell,
-                               const unsigned int &      f,
-                               const unsigned int &      sf,
-                               const Iterator &          ncell,
-                               const unsigned int &      nf,
-                               const unsigned int &      nsf,
-                               DGTracerScratchData<dim> &scratch_data,
-                               DGMethodsCopyData &       copy_data) {
-    copy_data.cell_is_local = cell->is_locally_owned();
-    if (!cell->is_locally_owned())
-      return;
-
-    auto &source_term = simulation_parameters.source_term->tracer_source;
-    source_term.set_time(simulation_control->get_current_time());
-
-    scratch_data.reinit(cell,
-                        this->evaluation_point,
-                        this->previous_solutions,
-                        this->solution_stages,
-                        &source_term);
-
-    const DoFHandler<dim> *dof_handler_fluid =
-      multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
-
-    typename DoFHandler<dim>::active_cell_iterator velocity_cell(
-      &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
-
-    if (multiphysics->fluid_dynamics_is_block())
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_block_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-    else
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-    copy_data.reset();
-
-    {
-      ////////////////////
-      FEInterfaceValues<dim> &fe_iv = scratch_data.fe_interface_values_tracer;
-      fe_iv.reinit(cell, f, sf, ncell, nf, nsf);
-      const auto &q_points =
-        fe_iv.get_quadrature_points(); // TODO ADD TO THE SCRATCH
-      const unsigned int n_q_points = scratch_data.face_n_q_points;
-      const auto &       JxW_vec =
-        fe_iv.get_JxW_values(); // TODO ADD TO THE SCRATCH   face_JxW; // TODO
-                                // WILL IT BE SPECIFIED WITH FACE SCRATCH?
-
-      copy_data.face_data.emplace_back();
-      DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
-
-      const unsigned int n_dofs        = fe_iv.n_current_interface_dofs();
-      copy_data_face.joint_dof_indices = fe_iv.get_interface_dof_indices();
-
-      copy_data_face.local_matrix.reinit(n_dofs, n_dofs);
-
-      const std::vector<double> &JxW =
-        fe_iv.get_JxW_values(); // TODO ADD TO THE SCRATCH
-      const std::vector<Tensor<1, dim>> &normals =
-        fe_iv.get_normal_vectors(); // TODO ADD TO THE SCRATCH
-
-      /* for (unsigned int qpoint = 0; qpoint < q_points.size(); ++qpoint)
-       {
-           const double beta_dot_n = beta(qpoints[qpoint])*normals[qpoint];
-           for (unsigned int i = 0; i<n_dofs; ++i)
-           {
-               for (unsigned int j = 0; j<n_dofs; ++j)
-               {
-                   copy_data_face.local_matrix(i,j) +=
-                           fe_iv.jump(i,qpoint) //[\phi_i]
-                           *
-                           fe_iv.shape_value((beta_dot_n>0),j,qpoint) //
-       phi_j^{upwind}
-                           * beta_dot_n //(\beta . n)
-                           * JxW[qpoint]; // dx
-               }
-           }
-       }*/
-      ///////////////////
-
-      // Scheme and physical properties
-      const double diffusivity =
-        this->simulation_parameters.physical_properties.tracer_diffusivity;
-      const auto method = this->simulation_control->get_assembly_method();
-
-      // Loop and quadrature informations
-      const double h =
-        scratch_data.face_size; // TODO WILL IT BE SPECIFIED WITH FACE SCRATCH?
-
-      // Copy data elements
-      auto &local_matrix = copy_data_face.local_matrix;
-
-      // assembling local matrix and right hand side
-      for (unsigned int q = 0; q < n_q_points; ++q)
-        {
-          // Gather into local variables the relevant fields
-          const Tensor<1, dim> tracer_gradient =
-            scratch_data.face_tracer_gradients[q];
-          const Tensor<1, dim> velocity = scratch_data.face_velocity_values[q];
-
-          // Store JxW in local variable for faster access;
-          const double JxW = JxW_vec[q];
-
-
-          for (unsigned int i = 0; i < n_dofs; ++i)
-            {
-              const auto   phi_T_i      = scratch_data.face_phi[q][i];
-              const auto   grad_phi_T_i = scratch_data.face_grad_phi[q][i];
-              const double beta_dot_n   = velocity * normals[q];
-
-              for (unsigned int j = 0; j < n_dofs; ++j)
-                {
-                  const Tensor<1, dim> grad_phi_T_j =
-                    scratch_data.face_grad_phi[q][j];
-                  const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
-
-                  // Weak form : - D * laplacian T +  u * gradT - f=0
-                  local_matrix(i, j) +=
-                    fe_iv.jump(i, q) //[\phi_i]
-                    *
-                    fe_iv.shape_value((beta_dot_n > 0), j, q) // phi_j^{upwind}
-                    * beta_dot_n                              //(\beta . n)
-                    * JxW;                                    // dx
-                  local_matrix(i, j) -= fe_iv.jump(i, q)      //[\phi_i]
-                                        * diffusivity         // D
-                                        * grad_phi_j_dot_n //(\grad \phi_j . n)
-                                        * JxW;             // dx
-                }
-            }
-        } // end loop on quadrature points
-    }
-
-    for (auto &assembler : this->assemblers)
-      {
-        // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
-        // assembler->assemble_matrix(scratch_data, copy_data);
-      }
-
-
-    cell->get_dof_indices(copy_data.local_dof_indices);
-  };
-
-  const auto boundary_worker = [&](const Iterator &          cell,
-                                   const unsigned int &      face_no,
-                                   DGTracerScratchData<dim> &scratch_data,
-                                   DGMethodsCopyData &       copy_data) {
-    copy_data.cell_is_local = cell->is_locally_owned();
-    if (!cell->is_locally_owned())
-      return;
-
-    auto &source_term = simulation_parameters.source_term->tracer_source;
-    source_term.set_time(simulation_control->get_current_time());
-
-    scratch_data.reinit(cell,
-                        this->evaluation_point,
-                        this->previous_solutions,
-                        this->solution_stages,
-                        &source_term);
-
-    const DoFHandler<dim> *dof_handler_fluid =
-      multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
-
-    typename DoFHandler<dim>::active_cell_iterator velocity_cell(
-      &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
-
-    if (multiphysics->fluid_dynamics_is_block())
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_block_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-    else
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-    copy_data.reset();
-
-    {
-      scratch_data.fe_interface_values_tracer.reinit(cell, face_no);
-      const FEFaceValuesBase<dim> &fe_face =
-        scratch_data.fe_interface_values_tracer.get_fe_face_values(0);
-      const auto &q_points = fe_face.get_quadrature_points();
-
-
-      std::vector<double> g(q_points.size());
-
-      // Scheme and physical properties
-      const double diffusivity =
-        this->simulation_parameters.physical_properties.tracer_diffusivity;
-      const auto method = this->simulation_control->get_assembly_method();
-
-      // Loop and quadrature informations
-      const auto &JxW_vec = fe_face.get_JxW_values();
-      ;
-      const unsigned int n_q_points = scratch_data.face_n_q_points;
-      const unsigned int n_dofs     = scratch_data.face_n_dofs;
-      const double       h          = scratch_data.cell_size;
-
-      const std::vector<Tensor<1, dim>> &normals = fe_face.get_normal_vectors();
-
-      // Copy data elements
-      auto &local_matrix = copy_data.local_matrix;
-
-      // assembling local matrix and right hand side
-      for (unsigned int q = 0; q < n_q_points; ++q)
-        {
-          // Gather into local variables the relevant fields
-          const Tensor<1, dim> tracer_gradient =
-            scratch_data.face_tracer_gradients[q];
-          const Tensor<1, dim> velocity = scratch_data.face_velocity_values[q];
-
-          // Store JxW in local variable for faster access;
-          const double JxW = JxW_vec[q];
-
-          const double beta_dot_n = velocity * normals[q];
-          if (beta_dot_n > 0)
-            {
-              for (unsigned int i = 0; i < n_dofs; ++i)
-                {
-                  const auto phi_T_i      = scratch_data.face_phi[q][i];
-                  const auto grad_phi_T_i = scratch_data.face_grad_phi[q][i];
-
-                  for (unsigned int j = 0; j < n_dofs; ++j)
-                    {
-                      const Tensor<1, dim> grad_phi_T_j =
-                        scratch_data.face_grad_phi[q][j];
-                      const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
-                      // Weak form : - D * laplacian T +  u * gradT - f=0
-                      local_matrix(i, j) += fe_face.shape_value(i, q) // \phi_i
-                                            *
-                                            fe_face.shape_value(j, q) // \phi_j
-                                            * beta_dot_n // \beta . n
-                                            * JxW;       // dx
-                      local_matrix(i, j) -=
-                        fe_face.shape_value(i, q) // \phi_i
-                        * diffusivity             // D
-                        * grad_phi_j_dot_n        //(\grad \phi_j . n)
-                        * JxW;                    // dx
+                        // Weak form : - D * laplacian T +  u * gradT - f=0
+                        local_matrix(i, j) +=
+                                (diffusivity * grad_phi_T_i * grad_phi_T_j -
+                                 phi_T_i * velocity * grad_phi_T_j) *
+                                JxW;
                     }
                 }
-            }
-        } // end loop on quadrature points
-    }
+            } // end loop on quadrature points
+        }
 
-    for (auto &assembler : this->assemblers)
-      {
-        // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
-        // assembler->assemble_matrix(scratch_data, copy_data);
-      }
+        for (auto &assembler : this->assemblers) {
+            // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
+            // assembler->assemble_matrix(scratch_data, copy_data);
+        }
 
+        cell->get_dof_indices(copy_data.local_dof_indices);
+    };
 
-    cell->get_dof_indices(copy_data.local_dof_indices);
-  };
+    const auto face_worker = [&](const Iterator &cell,
+                                 const unsigned int &f,
+                                 const unsigned int &sf,
+                                 const Iterator &ncell,
+                                 const unsigned int &nf,
+                                 const unsigned int &nsf,
+                                 DGTracerScratchData<dim> &scratch_data,
+                                 DGMethodsCopyData &copy_data) {
+        std::cout << "face_worker matrix" << std::endl;
+        copy_data.cell_is_local = cell->is_locally_owned();
+        if (!cell->is_locally_owned())
+            return;
 
-  const auto copier = [&](const DGMethodsCopyData &copy_data) {
-    if (!copy_data.cell_is_local)
-      return;
+        auto &source_term = simulation_parameters.source_term->tracer_source;
+        source_term.set_time(simulation_control->get_current_time());
 
-    const AffineConstraints<double> &constraints_used = this->zero_constraints;
-    constraints_used.distribute_local_to_global(copy_data.local_matrix,
-                                                copy_data.local_dof_indices,
-                                                system_matrix);
-  };
+        scratch_data.reinit_face(cell,
+                                 f,
+                                 sf,
+                                 ncell,
+                                 nf,
+                                 nsf,
+                                 this->evaluation_point,
+                                 this->previous_solutions,
+                                 this->solution_stages,
+                                 &source_term);
 
-  MeshWorker::mesh_loop(this->dof_handler.begin_active(),
-                        this->dof_handler.end(),
-                        cell_worker,
-                        copier,
-                        scratch_data,
-                        DGMethodsCopyData(this->fe->n_dofs_per_cell(),
-                                          this->cell_quadrature->size()),
-                        MeshWorker::assemble_own_cells |
-                          MeshWorker::assemble_boundary_faces |
-                          MeshWorker::assemble_own_interior_faces_once,
-                        boundary_worker,
-                        face_worker);
+        const DoFHandler<dim> *dof_handler_fluid =
+                multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
 
-  system_matrix.compress(VectorOperation::add);
-}
+        typename DoFHandler<dim>::active_cell_iterator velocity_cell(
+                &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
 
-template <int dim>
-void
-DGTracer<dim>::assemble_system_rhs()
-{
-  // TimerOutput::Scope t(this->computing_timer, "Assemble RHS");
-  this->system_rhs = 0;
-  setup_assemblers();
+        if (multiphysics->fluid_dynamics_is_block()) {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_block_solution(
+                                                 PhysicsID::fluid_dynamics));
+        } else {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_solution(
+                                                 PhysicsID::fluid_dynamics));
+        }
+        copy_data.reset();
 
-  const DoFHandler<dim> *dof_handler_fluid =
-    multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
-
-  auto scratch_data = DGTracerScratchData<dim>(*this->fe,
-                                               *this->cell_quadrature,
-                                               *this->face_quadrature,
-                                               *this->mapping,
-                                               dof_handler_fluid->get_fe());
-
-  using Iterator = typename DoFHandler<dim>::active_cell_iterator;
-
-  const auto cell_worker = [&](const Iterator &          cell,
-                               DGTracerScratchData<dim> &scratch_data,
-                               DGMethodsCopyData &       copy_data) {
-    copy_data.cell_is_local = cell->is_locally_owned();
-    if (!cell->is_locally_owned())
-      return;
-
-    auto &source_term = simulation_parameters.source_term->tracer_source;
-    source_term.set_time(simulation_control->get_current_time());
-
-    scratch_data.reinit(cell,
-                        this->evaluation_point,
-                        this->previous_solutions,
-                        this->solution_stages,
-                        &source_term);
-
-    const DoFHandler<dim> *dof_handler_fluid =
-      multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
-
-    typename DoFHandler<dim>::active_cell_iterator velocity_cell(
-      &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
-
-    if (multiphysics->fluid_dynamics_is_block())
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_block_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-    else
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-
-    copy_data.reset();
-
-    {
-      // Scheme and physical properties
-      const double diffusivity =
-        this->simulation_parameters.physical_properties.tracer_diffusivity;
-      const auto method = this->simulation_control->get_assembly_method();
-
-      // Loop and quadrature informations
-      const auto &       JxW_vec    = scratch_data.cell_JxW;
-      const unsigned int n_q_points = scratch_data.cell_n_q_points;
-      const unsigned int n_dofs     = scratch_data.cell_n_dofs;
-      const double       h          = scratch_data.cell_size;
-
-      // Copy data elements
-      auto &local_rhs = copy_data.local_rhs;
-
-      // assembling local matrix and right hand side
-      for (unsigned int q = 0; q < n_q_points; ++q)
         {
-          // Gather into local variables the relevant fields
-          const Tensor<1, dim> tracer_gradient =
-            scratch_data.cell_tracer_gradients[q];
-          const Tensor<1, dim> velocity = scratch_data.cell_velocity_values[q];
+            FEInterfaceValues<dim> &fe_iv = scratch_data.fe_interface_values_tracer;
 
-          // Store JxW in local variable for faster access;
-          const double JxW = JxW_vec[q];
+            const auto &JxW_vec = scratch_data.face_JxW;
+            const unsigned int n_q_points = scratch_data.face_n_q_points;
+            const unsigned int n_dofs = scratch_data.face_n_dofs;
 
-          for (unsigned int i = 0; i < n_dofs; ++i)
-            {
-              const auto phi_T_i      = scratch_data.cell_phi[q][i];
-              const auto grad_phi_T_i = scratch_data.cell_grad_phi[q][i];
+            copy_data.face_data.emplace_back(n_dofs, n_q_points);
+            DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
+            copy_data_face.joint_dof_indices = fe_iv.get_interface_dof_indices();
 
-              // rhs for : - D * laplacian T +  u * grad T - f=0
-              local_rhs(i) += (scratch_data.cell_source[q] * phi_T_i) * JxW;
-            }
+            copy_data_face.local_matrix.reinit(n_dofs, n_dofs);
 
-        } // end loop on quadrature points
-    }
+            const std::vector<Tensor<1, dim>> &normals =
+                    fe_iv.get_normal_vectors(); // TODO ADD TO THE SCRATCH
 
-    for (auto &assembler : this->assemblers)
-      {
-        // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
-        // assembler->assemble_rhs(scratch_data, copy_data);
-      }
+            // Scheme and physical properties
+            const double diffusivity =
+                    this->simulation_parameters.physical_properties.tracer_diffusivity;
+            const auto method = this->simulation_control->get_assembly_method();
 
-    cell->get_dof_indices(copy_data.local_dof_indices);
-  };
+            // Loop and quadrature informations
+            const double h =
+                    scratch_data.face_size; // TODO WILL IT BE SPECIFIED WITH FACE SCRATCH?
 
-  const auto face_worker = [&](const Iterator &          cell,
-                               const unsigned int &      f,
-                               const unsigned int &      sf,
-                               const Iterator &          ncell,
-                               const unsigned int &      nf,
-                               const unsigned int &      nsf,
-                               DGTracerScratchData<dim> &scratch_data,
-                               DGMethodsCopyData &       copy_data) {
-    copy_data.cell_is_local = cell->is_locally_owned();
-    if (!cell->is_locally_owned())
-      return;
+            // Copy data elements
+            auto &local_matrix = copy_data_face.local_matrix;
 
-    auto &source_term = simulation_parameters.source_term->tracer_source;
-    source_term.set_time(simulation_control->get_current_time());
+            // assembling local matrix and right hand side
+            for (unsigned int q = 0; q < n_q_points; ++q) {
+                // Gather into local variables the relevant fields
+                const Tensor<1, dim> tracer_gradient =
+                        scratch_data.face_tracer_gradients[q];
+                const Tensor<1, dim> velocity = scratch_data.face_velocity_values[q];
 
-    scratch_data.reinit(cell,
-                        this->evaluation_point,
-                        this->previous_solutions,
-                        this->solution_stages,
-                        &source_term);
-
-    const DoFHandler<dim> *dof_handler_fluid =
-      multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
-
-    typename DoFHandler<dim>::active_cell_iterator velocity_cell(
-      &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
-
-    if (multiphysics->fluid_dynamics_is_block())
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_block_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-    else
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-
-    copy_data.reset();
+                // Store JxW in local variable for faster access;
+                const double JxW = JxW_vec[q];
 
 
-    // TODO ADD CORE ASSEMBLY HERE
-    // NO CONTRIBUTION TO ADD HERE
+                for (unsigned int i = 0; i < n_dofs; ++i) {
+                    const auto grad_phi_T_i = scratch_data.face_grad_phi[q][i];
+                    const double beta_dot_n = velocity * normals[q];
 
-    for (auto &assembler : this->assemblers)
-      {
-        // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
-        // assembler->assemble_rhs(scratch_data, copy_data);
-      }
+                    for (unsigned int j = 0; j < n_dofs; ++j) {
+                        const Tensor<1, dim> grad_phi_T_j =
+                                scratch_data.face_grad_phi[q][j];
+                        const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
 
-    cell->get_dof_indices(copy_data.local_dof_indices);
-  };
-
-  const auto boundary_worker = [&](const Iterator &          cell,
-                                   const unsigned int &      face_no,
-                                   DGTracerScratchData<dim> &scratch_data,
-                                   DGMethodsCopyData &       copy_data) {
-    copy_data.cell_is_local = cell->is_locally_owned();
-    if (!cell->is_locally_owned())
-      return;
-
-    auto &source_term = simulation_parameters.source_term->tracer_source;
-    source_term.set_time(simulation_control->get_current_time());
-
-    scratch_data.reinit(cell,
-                        this->evaluation_point,
-                        this->previous_solutions,
-                        this->solution_stages,
-                        &source_term);
-
-    const DoFHandler<dim> *dof_handler_fluid =
-      multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
-
-    typename DoFHandler<dim>::active_cell_iterator velocity_cell(
-      &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
-
-    if (multiphysics->fluid_dynamics_is_block())
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_block_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-    else
-      {
-        scratch_data.reinit_velocity(velocity_cell,
-                                     *multiphysics->get_solution(
-                                       PhysicsID::fluid_dynamics));
-      }
-
-    copy_data.reset();
-
-    {
-      // Scheme and physical properties
-      const double diffusivity =
-        this->simulation_parameters.physical_properties.tracer_diffusivity;
-      const auto method = this->simulation_control->get_assembly_method();
-      FEInterfaceValues<dim> &fe_iv = scratch_data.fe_interface_values_tracer;
-
-      // Loop and quadrature informations
-      const auto &       JxW_vec    = scratch_data.face_JxW;
-      const unsigned int n_q_points = scratch_data.face_n_q_points;
-      const unsigned int n_dofs     = scratch_data.face_n_dofs;
-      const double       h          = scratch_data.face_size;
-
-      const std::vector<Tensor<1, dim>> &normals =
-        fe_iv.get_normal_vectors(); // TODO ADD TO THE SCRATCH
-
-      // Copy data elements
-      auto &local_rhs = copy_data.local_rhs;
-
-      // assembling local matrix and right hand side
-      for (unsigned int q = 0; q < n_q_points; ++q)
-        {
-          // Gather into local variables the relevant fields
-          const Tensor<1, dim> tracer_gradient =
-            scratch_data.cell_tracer_gradients[q];
-          const Tensor<1, dim> velocity = scratch_data.cell_velocity_values[q];
-
-          // Store JxW in local variable for faster access;
-          const double JxW        = JxW_vec[q];
-          const double beta_dot_n = velocity * normals[q];
-          if (beta_dot_n <= 0)
-            {
-              for (unsigned int i = 0; i < n_dofs; ++i)
-                {
-                  const auto phi_T_i      = scratch_data.face_phi[q][i];
-                  const auto grad_phi_T_i = scratch_data.face_grad_phi[q][i];
-
-                  for (unsigned int j = 0; j < n_dofs; ++j)
-                    {
-                      const Tensor<1, dim> grad_phi_T_j =
-                        scratch_data.face_grad_phi[q][j];
-                      const auto   phi_T_j = scratch_data.face_phi[q][j];
-                      const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
-                      // rhs for : - D * laplacian T +  u * grad T - f=0
-                      local_rhs(i) +=
-                        phi_T_i * (phi_T_j * beta_dot_n) * JxW; // dx
-                      local_rhs(i) -=
-                        phi_T_i * diffusivity * grad_phi_j_dot_n * JxW; // dx
+                        // Weak form : - D * laplacian T +  u * gradT - f=0
+                        local_matrix(i, j) +=
+                                fe_iv.jump(i, q) //[\phi_i]
+                                *
+                                fe_iv.shape_value((beta_dot_n > 0), j, q) // phi_j^{upwind}
+                                * beta_dot_n                              //(\beta . n)
+                                * JxW;                                    // dx
+                        local_matrix(i, j) -= fe_iv.jump(i, q)      //[\phi_i]
+                                              * diffusivity         // D
+                                              * grad_phi_j_dot_n //(\grad \phi_j . n)
+                                              * JxW;             // dx
                     }
                 }
-            }
+            } // end loop on quadrature points
+        }
 
-        } // end loop on quadrature points
-    }
+        for (auto &assembler : this->assemblers) {
+            // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
+            // assembler->assemble_matrix(scratch_data, copy_data);
+        }
+
+        cell->get_dof_indices(copy_data.local_dof_indices);
+    };
+
+    const auto boundary_worker = [&](const Iterator &cell,
+                                     const unsigned int &face_no,
+                                     DGTracerScratchData<dim> &scratch_data,
+                                     DGMethodsCopyData &copy_data) {
+        std::cout << "boundary_worker matrix" << std::endl;
+        copy_data.cell_is_local = cell->is_locally_owned();
+        if (!cell->is_locally_owned())
+            return;
+
+        auto &source_term = simulation_parameters.source_term->tracer_source;
+        source_term.set_time(simulation_control->get_current_time());
+std::cout<<"before reinit_boundary"<<std::endl;
+        scratch_data.reinit_boundary(cell,
+                                     face_no,
+                                     this->evaluation_point,
+                                     this->previous_solutions,
+                                     this->solution_stages,
+                                     &source_term);
+std::cout<<"after reinit_boundary"<<std::endl;
+
+        const DoFHandler<dim> *dof_handler_fluid =
+                multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
+
+        typename DoFHandler<dim>::active_cell_iterator velocity_cell(
+                &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
+
+        if (multiphysics->fluid_dynamics_is_block()) {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_block_solution(
+                                                 PhysicsID::fluid_dynamics));
+        } else {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_solution(
+                                                 PhysicsID::fluid_dynamics));
+        }
+        copy_data.reset();
+
+        {
+            const FEFaceValuesBase<dim> &fe_face =scratch_data.fe_interface_values_tracer.get_fe_face_values(0);
+
+            std::cout << "created fe_face" << std::endl;
+
+            // Scheme and physical properties
+            const double diffusivity =
+                    this->simulation_parameters.physical_properties.tracer_diffusivity;
+            const auto method = this->simulation_control->get_assembly_method();
+
+            // Loop and quadrature informations
+            const auto &JxW_vec = scratch_data.boundary_JxW;
+            const unsigned int n_q_points = scratch_data.boundary_n_q_points;
+            const unsigned int n_dofs = scratch_data.boundary_n_dofs;
+            const double h = scratch_data.face_size;
 
 
-    for (auto &assembler : this->assemblers)
-      {
-        // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
-        // assembler->assemble_rhs(scratch_data, copy_data);
-      }
+            std::cout << "created loop and quadrature informations" << std::endl;
 
-    cell->get_dof_indices(copy_data.local_dof_indices);
-  };
+            const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 
-  const auto copier = [&](const DGMethodsCopyData &copy_data) {
-    if (!copy_data.cell_is_local)
-      return;
+            // Copy data elements
+            auto &local_matrix = copy_data.local_matrix;
 
-    const AffineConstraints<double> &constraints_used = this->zero_constraints;
-    constraints_used.distribute_local_to_global(copy_data.local_rhs,
-                                                copy_data.local_dof_indices,
-                                                system_rhs);
-  };
+            // assembling local matrix and right hand side
+            for (unsigned int q = 0; q < n_q_points; ++q) {
+                // Gather into local variables the relevant fields
+                const Tensor<1, dim> tracer_gradient =
+                        scratch_data.boundary_tracer_gradients[q];
+                const Tensor<1, dim> velocity = scratch_data.boundary_velocity_values[q];
 
-  MeshWorker::mesh_loop(this->dof_handler.begin_active(),
-                        this->dof_handler.end(),
-                        cell_worker,
-                        copier,
-                        scratch_data,
-                        DGMethodsCopyData(this->fe->n_dofs_per_cell(),
-                                          this->cell_quadrature->size()),
-                        MeshWorker::assemble_own_cells |
+                std::cout << "entered loop 1" << std::endl;
+                // Store JxW in local variable for faster access;
+                const double JxW = JxW_vec[q];
+                std::cout << "created JxW variable" << std::endl;
+
+                std::cout << "velocity " << std::endl;
+                std::cout << velocity << std::endl;
+                std::cout << "normals[q] " << std::endl;
+                std::cout << normals[q] << std::endl;
+                std::cout << "beta_dot_n " << std::endl;
+                const double beta_dot_n = velocity * normals[q];
+
+                std::cout << "created beta dot n" << std::endl;
+                if (beta_dot_n > 0) {
+                    std::cout << "entered if" << std::endl;
+                    for (unsigned int i = 0; i < n_dofs; ++i) {
+
+                        std::cout << "entered loop 2" << std::endl;
+                        const auto grad_phi_T_i = scratch_data.boundary_grad_phi[q][i];
+
+                        for (unsigned int j = 0; j < n_dofs; ++j) {
+                            std::cout << "entered loop 3" << std::endl;
+                            const Tensor<1, dim> grad_phi_T_j =
+                                    scratch_data.boundary_grad_phi[q][j];
+                            const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
+                            // Weak form : - D * laplacian T +  u * gradT - f=0
+                            local_matrix(i, j) += fe_face.shape_value(i, q) // \phi_i
+                                                  *
+                                                  fe_face.shape_value(j, q) // \phi_j
+                                                  * beta_dot_n // \beta . n
+                                                  * JxW;       // dx
+                            local_matrix(i, j) -=
+                                    fe_face.shape_value(i, q) // \phi_i
+                                    * diffusivity             // D
+                                    * grad_phi_j_dot_n        //(\grad \phi_j . n)
+                                    * JxW;                    // dx
+                        }
+                    }
+                }
+            } // end loop on quadrature points
+        }
+
+        for (auto &assembler : this->assemblers) {
+            // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
+            // assembler->assemble_matrix(scratch_data, copy_data);
+        }
+
+
+        cell->get_dof_indices(copy_data.local_dof_indices);
+    };
+
+    const auto copier = [&](const DGMethodsCopyData &copy_data) {
+        if (!copy_data.cell_is_local)
+            return;
+
+        const AffineConstraints<double> &constraints_used = this->zero_constraints;
+        constraints_used.distribute_local_to_global(copy_data.local_matrix,
+                                                    copy_data.local_dof_indices,
+                                                    system_matrix);
+        for (auto &cdf : copy_data.face_data) {
+            constraints_used.distribute_local_to_global(cdf.local_matrix,
+                                                        cdf.joint_dof_indices,
+                                                        system_matrix);
+        }
+    };
+
+    MeshWorker::mesh_loop(this->dof_handler.begin_active(),
+                          this->dof_handler.end(),
+                          cell_worker,
+                          copier,
+                          scratch_data,
+                          DGMethodsCopyData(this->fe->n_dofs_per_cell(),
+                                            this->cell_quadrature->size()),
+                          MeshWorker::assemble_own_cells |
                           MeshWorker::assemble_boundary_faces |
                           MeshWorker::assemble_own_interior_faces_once,
-                        boundary_worker,
-                        face_worker);
+                          boundary_worker,
+                          face_worker);
 
-  this->system_rhs.compress(VectorOperation::add);
+    system_matrix.compress(VectorOperation::add);
 }
 
-
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::attach_solution_to_output(DataOut<dim> &data_out)
-{
-  data_out.add_data_vector(dof_handler, present_solution, "dg_tracer");
+DGTracer<dim>::assemble_system_rhs() {
+    // TimerOutput::Scope t(this->computing_timer, "Assemble RHS");
+    this->system_rhs = 0;
+    setup_assemblers();
+
+    const DoFHandler<dim> *dof_handler_fluid =
+            multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
+
+    auto scratch_data = DGTracerScratchData<dim>(*this->fe,
+                                                 *this->cell_quadrature,
+                                                 *this->face_quadrature,
+                                                 *this->mapping,
+                                                 dof_handler_fluid->get_fe());
+
+    using Iterator = typename DoFHandler<dim>::active_cell_iterator;
+
+    const auto cell_worker = [&](const Iterator &cell,
+                                 DGTracerScratchData<dim> &scratch_data,
+                                 DGMethodsCopyData &copy_data) {
+        std::cout << "cell_worker rhs" << std::endl;
+        copy_data.cell_is_local = cell->is_locally_owned();
+        if (!cell->is_locally_owned())
+            return;
+
+        auto &source_term = simulation_parameters.source_term->tracer_source;
+        source_term.set_time(simulation_control->get_current_time());
+
+        scratch_data.reinit_cell(cell,
+                                 this->evaluation_point,
+                                 this->previous_solutions,
+                                 this->solution_stages,
+                                 &source_term);
+
+        const DoFHandler<dim> *dof_handler_fluid =
+                multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
+
+        typename DoFHandler<dim>::active_cell_iterator velocity_cell(
+                &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
+
+        if (multiphysics->fluid_dynamics_is_block()) {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_block_solution(
+                                                 PhysicsID::fluid_dynamics));
+        } else {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_solution(
+                                                 PhysicsID::fluid_dynamics));
+        }
+
+        copy_data.reset();
+
+        {
+            // Scheme and physical properties
+            const double diffusivity =
+                    this->simulation_parameters.physical_properties.tracer_diffusivity;
+            const auto method = this->simulation_control->get_assembly_method();
+
+            // Loop and quadrature informations
+            const auto &JxW_vec = scratch_data.cell_JxW;
+            const unsigned int n_q_points = scratch_data.cell_n_q_points;
+            const unsigned int n_dofs = scratch_data.cell_n_dofs;
+            const double h = scratch_data.cell_size;
+
+            // Copy data elements
+            auto &local_rhs = copy_data.local_rhs;
+
+            // assembling local matrix and right hand side
+            for (unsigned int q = 0; q < n_q_points; ++q) {
+                // Gather into local variables the relevant fields
+                const Tensor<1, dim> tracer_gradient =
+                        scratch_data.cell_tracer_gradients[q];
+                const Tensor<1, dim> velocity = scratch_data.cell_velocity_values[q];
+
+                // Store JxW in local variable for faster access;
+                const double JxW = JxW_vec[q];
+
+                for (unsigned int i = 0; i < n_dofs; ++i) {
+                    const auto phi_T_i = scratch_data.cell_phi[q][i];
+                    const auto grad_phi_T_i = scratch_data.cell_grad_phi[q][i];
+
+                    // rhs for : - D * laplacian T +  u * grad T - f=0
+                    local_rhs(i) += (scratch_data.cell_source[q] * phi_T_i) * JxW;
+                }
+
+            } // end loop on quadrature points
+        }
+
+        for (auto &assembler : this->assemblers) {
+            // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
+            // assembler->assemble_rhs(scratch_data, copy_data);
+        }
+
+        cell->get_dof_indices(copy_data.local_dof_indices);
+    };
+
+    const auto face_worker = [&](const Iterator &cell,
+                                 const unsigned int &f,
+                                 const unsigned int &sf,
+                                 const Iterator &ncell,
+                                 const unsigned int &nf,
+                                 const unsigned int &nsf,
+                                 DGTracerScratchData<dim> &scratch_data,
+                                 DGMethodsCopyData &copy_data) {
+        std::cout << "face_worker rhs" << std::endl;
+        copy_data.cell_is_local = cell->is_locally_owned();
+        if (!cell->is_locally_owned())
+            return;
+
+        auto &source_term = simulation_parameters.source_term->tracer_source;
+        source_term.set_time(simulation_control->get_current_time());
+
+        scratch_data.reinit_face(cell,
+                                 f,
+                                 sf,
+                                 ncell,
+                                 nf,
+                                 nsf,
+                                 this->evaluation_point,
+                                 this->previous_solutions,
+                                 this->solution_stages,
+                                 &source_term);
+
+        const DoFHandler<dim> *dof_handler_fluid =
+                multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
+
+        typename DoFHandler<dim>::active_cell_iterator velocity_cell(
+                &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
+
+        if (multiphysics->fluid_dynamics_is_block()) {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_block_solution(
+                                                 PhysicsID::fluid_dynamics));
+        } else {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_solution(
+                                                 PhysicsID::fluid_dynamics));
+        }
+
+        copy_data.reset();
+
+
+        // TODO ADD CORE ASSEMBLY HERE
+        // NO CONTRIBUTION TO ADD HERE
+
+        for (auto &assembler : this->assemblers) {
+            // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
+            // assembler->assemble_rhs(scratch_data, copy_data);
+        }
+
+        cell->get_dof_indices(copy_data.local_dof_indices);
+    };
+
+    const auto boundary_worker = [&](const Iterator &cell,
+                                     const unsigned int &face_no,
+                                     DGTracerScratchData<dim> &scratch_data,
+                                     DGMethodsCopyData &copy_data) {
+        std::cout << "boundary_worker rhs" << std::endl;
+        copy_data.cell_is_local = cell->is_locally_owned();
+        if (!cell->is_locally_owned())
+            return;
+
+        auto &source_term = simulation_parameters.source_term->tracer_source;
+        source_term.set_time(simulation_control->get_current_time());
+
+        scratch_data.reinit_boundary(cell,
+                                     face_no,
+                                     this->evaluation_point,
+                                     this->previous_solutions,
+                                     this->solution_stages,
+                                     &source_term);
+
+        const DoFHandler<dim> *dof_handler_fluid =
+                multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
+
+        typename DoFHandler<dim>::active_cell_iterator velocity_cell(
+                &(*triangulation), cell->level(), cell->index(), dof_handler_fluid);
+
+        if (multiphysics->fluid_dynamics_is_block()) {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_block_solution(
+                                                 PhysicsID::fluid_dynamics));
+        } else {
+            scratch_data.reinit_velocity(velocity_cell,
+                                         *multiphysics->get_solution(
+                                                 PhysicsID::fluid_dynamics));
+        }
+
+        copy_data.reset();
+
+        {
+            const FEFaceValuesBase<dim> &fe_face = scratch_data.fe_interface_values_tracer.get_fe_face_values(0);
+
+            // Scheme and physical properties
+            const double diffusivity =
+                    this->simulation_parameters.physical_properties.tracer_diffusivity;
+            const auto method = this->simulation_control->get_assembly_method();
+            FEInterfaceValues<dim> &fe_iv = scratch_data.fe_interface_values_tracer;
+
+            // Loop and quadrature informations
+            const auto &JxW_vec = scratch_data.boundary_JxW;
+            const unsigned int n_q_points = scratch_data.boundary_n_q_points;
+            const unsigned int n_dofs = scratch_data.boundary_n_dofs;
+            const double h = scratch_data.face_size;
+
+            const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
+
+            // Copy data elements
+            auto &local_rhs = copy_data.local_rhs;
+
+            // assembling local matrix and right hand side
+            for (unsigned int q = 0; q < n_q_points; ++q) {
+                // Gather into local variables the relevant fields
+                const Tensor<1, dim> tracer_gradient =
+                        scratch_data.boundary_tracer_gradients[q];
+                const Tensor<1, dim> velocity = scratch_data.boundary_velocity_values[q];
+
+                // Store JxW in local variable for faster access;
+                const double JxW = JxW_vec[q];
+                const double beta_dot_n = velocity * normals[q];
+                if (beta_dot_n <= 0) {
+                    for (unsigned int i = 0; i < n_dofs; ++i) {
+                        const auto phi_T_i =
+                                fe_face.shape_value(i, q); // TODO ADD TO SCRATCH
+                        const auto grad_phi_T_i = scratch_data.boundary_grad_phi[q][i];
+
+                        for (unsigned int j = 0; j < n_dofs; ++j) {
+                            const Tensor<1, dim> grad_phi_T_j =
+                                    scratch_data.boundary_grad_phi[q][j];
+                            const auto phi_T_j =
+                                    fe_face.shape_value(i, q); // TODO ADD TO SCRATCH
+                            const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
+                            // rhs for : - D * laplacian T +  u * grad T - f=0
+                            local_rhs(i) +=
+                                    phi_T_i * (phi_T_j * beta_dot_n) * JxW; // dx
+                            local_rhs(i) -=
+                                    phi_T_i * diffusivity * grad_phi_j_dot_n * JxW; // dx
+                        }
+                    }
+                }
+
+            } // end loop on quadrature points
+        }
+
+
+        for (auto &assembler : this->assemblers) {
+            // TODO S'ASSURER QUE L'ASSEMBLAGE EN SS EST POSSIBLE
+            // assembler->assemble_rhs(scratch_data, copy_data);
+        }
+
+        cell->get_dof_indices(copy_data.local_dof_indices);
+    };
+
+    const auto copier = [&](const DGMethodsCopyData &copy_data) {
+        if (!copy_data.cell_is_local)
+            return;
+
+        const AffineConstraints<double> &constraints_used = this->zero_constraints;
+        constraints_used.distribute_local_to_global(copy_data.local_rhs,
+                                                    copy_data.local_dof_indices,
+                                                    system_rhs);
+        for (auto &cdf : copy_data.face_data) {
+            constraints_used.distribute_local_to_global(cdf.local_rhs,
+                                                        cdf.joint_dof_indices,
+                                                        system_rhs);
+        }
+    };
+
+    MeshWorker::mesh_loop(this->dof_handler.begin_active(),
+                          this->dof_handler.end(),
+                          cell_worker,
+                          copier,
+                          scratch_data,
+                          DGMethodsCopyData(this->fe->n_dofs_per_cell(),
+                                            this->cell_quadrature->size()),
+                          MeshWorker::assemble_own_cells |
+                          MeshWorker::assemble_boundary_faces |
+                          MeshWorker::assemble_own_interior_faces_once,
+                          boundary_worker,
+                          face_worker);
+
+    this->system_rhs.compress(VectorOperation::add);
 }
 
-template <int dim>
+
+template<int dim>
+void
+DGTracer<dim>::attach_solution_to_output(DataOut<dim> &data_out) {
+    data_out.add_data_vector(dof_handler, present_solution, "dg_tracer");
+}
+
+template<int dim>
 double
-DGTracer<dim>::calculate_L2_error()
-{
-  auto mpi_communicator = triangulation->get_communicator();
+DGTracer<dim>::calculate_L2_error() {
+    auto mpi_communicator = triangulation->get_communicator();
 
-  FEValues<dim> fe_values(*mapping,
-                          *fe,
-                          *cell_quadrature,
-                          update_values | update_gradients |
+    FEValues<dim> fe_values(*mapping,
+                            *fe,
+                            *cell_quadrature,
+                            update_values | update_gradients |
                             update_quadrature_points | update_JxW_values);
 
-  const unsigned int dofs_per_cell =
-    fe->dofs_per_cell; // This gives you dofs per cell
+    const unsigned int dofs_per_cell =
+            fe->dofs_per_cell; // This gives you dofs per cell
 
-  std::vector<types::global_dof_index> local_dof_indices(
-    dofs_per_cell); //  Local connectivity
+    std::vector<types::global_dof_index> local_dof_indices(
+            dofs_per_cell); //  Local connectivity
 
-  const unsigned int n_q_points = cell_quadrature->size();
+    const unsigned int n_q_points = cell_quadrature->size();
 
-  std::vector<double> q_exact_solution(n_q_points);
-  std::vector<double> q_scalar_values(n_q_points);
+    std::vector<double> q_exact_solution(n_q_points);
+    std::vector<double> q_scalar_values(n_q_points);
 
-  auto &exact_solution = simulation_parameters.analytical_solution->tracer;
-  exact_solution.set_time(simulation_control->get_current_time());
+    auto &exact_solution = simulation_parameters.analytical_solution->tracer;
+    exact_solution.set_time(simulation_control->get_current_time());
 
-  double l2error = 0.;
+    double l2error = 0.;
 
-  for (const auto &cell : dof_handler.active_cell_iterators())
-    {
-      if (cell->is_locally_owned())
-        {
-          fe_values.reinit(cell);
-          fe_values.get_function_values(present_solution, q_scalar_values);
+    for (const auto &cell : dof_handler.active_cell_iterators()) {
+        if (cell->is_locally_owned()) {
+            fe_values.reinit(cell);
+            fe_values.get_function_values(present_solution, q_scalar_values);
 
-          // Retrieve the effective "connectivity matrix" for this element
-          cell->get_dof_indices(local_dof_indices);
+            // Retrieve the effective "connectivity matrix" for this element
+            cell->get_dof_indices(local_dof_indices);
 
-          // Get the exact solution at all gauss points
-          exact_solution.value_list(fe_values.get_quadrature_points(),
-                                    q_exact_solution);
+            // Get the exact solution at all gauss points
+            exact_solution.value_list(fe_values.get_quadrature_points(),
+                                      q_exact_solution);
 
-          for (unsigned int q = 0; q < n_q_points; q++)
-            {
-              double sim   = q_scalar_values[q];
-              double exact = q_exact_solution[q];
-              l2error += (sim - exact) * (sim - exact) * fe_values.JxW(q);
+            for (unsigned int q = 0; q < n_q_points; q++) {
+                double sim = q_scalar_values[q];
+                double exact = q_exact_solution[q];
+                l2error += (sim - exact) * (sim - exact) * fe_values.JxW(q);
             }
         }
     }
-  l2error = Utilities::MPI::sum(l2error, mpi_communicator);
-  return l2error;
+    l2error = Utilities::MPI::sum(l2error, mpi_communicator);
+    return l2error;
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::finish_simulation()
-{
-  auto         mpi_communicator = triangulation->get_communicator();
-  unsigned int this_mpi_process(
-    Utilities::MPI::this_mpi_process(mpi_communicator));
+DGTracer<dim>::finish_simulation() {
+    auto mpi_communicator = triangulation->get_communicator();
+    unsigned int this_mpi_process(
+            Utilities::MPI::this_mpi_process(mpi_communicator));
 
-  if (this_mpi_process == 0 &&
-      simulation_parameters.analytical_solution->verbosity ==
-        Parameters::Verbosity::verbose)
-    {
-      error_table.omit_column_from_convergence_rate_evaluation("cells");
+    if (this_mpi_process == 0 &&
+        simulation_parameters.analytical_solution->verbosity ==
+        Parameters::Verbosity::verbose) {
+        error_table.omit_column_from_convergence_rate_evaluation("cells");
 
-      if (simulation_parameters.simulation_control.method ==
-          Parameters::SimulationControl::TimeSteppingMethod::steady)
-        {
-          error_table.evaluate_all_convergence_rates(
-            ConvergenceTable::reduction_rate_log2);
+        if (simulation_parameters.simulation_control.method ==
+            Parameters::SimulationControl::TimeSteppingMethod::steady) {
+            error_table.evaluate_all_convergence_rates(
+                    ConvergenceTable::reduction_rate_log2);
         }
-      error_table.set_scientific("error_tracer", true);
-      error_table.set_precision("error_tracer",
-                                simulation_control->get_log_precision());
-      error_table.write_text(std::cout);
+        error_table.set_scientific("error_tracer", true);
+        error_table.set_precision("error_tracer",
+                                  simulation_control->get_log_precision());
+        error_table.write_text(std::cout);
     }
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::percolate_time_vectors()
-{
-  for (unsigned int i = previous_solutions.size() - 1; i > 0; --i)
-    {
-      previous_solutions[i] = previous_solutions[i - 1];
+DGTracer<dim>::percolate_time_vectors() {
+    for (unsigned int i = previous_solutions.size() - 1; i > 0; --i) {
+        previous_solutions[i] = previous_solutions[i - 1];
     }
-  previous_solutions[0] = this->present_solution;
+    previous_solutions[0] = this->present_solution;
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::finish_time_step()
-{
-  percolate_time_vectors();
+DGTracer<dim>::finish_time_step() {
+    percolate_time_vectors();
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::postprocess(bool first_iteration)
-{
-  if (simulation_parameters.analytical_solution->calculate_error() == true &&
-      !first_iteration)
-    {
-      double tracer_error = calculate_L2_error();
+DGTracer<dim>::postprocess(bool first_iteration) {
+    if (simulation_parameters.analytical_solution->calculate_error() == true &&
+        !first_iteration) {
+        double tracer_error = calculate_L2_error();
 
-      error_table.add_value("cells",
-                            this->triangulation->n_global_active_cells());
-      error_table.add_value("error_tracer", tracer_error);
+        error_table.add_value("cells",
+                              this->triangulation->n_global_active_cells());
+        error_table.add_value("error_tracer", tracer_error);
 
-      if (simulation_parameters.analytical_solution->verbosity ==
-          Parameters::Verbosity::verbose)
-        {
-          this->pcout << "L2 error tracer : " << tracer_error << std::endl;
+        if (simulation_parameters.analytical_solution->verbosity ==
+            Parameters::Verbosity::verbose) {
+            this->pcout << "L2 error tracer : " << tracer_error << std::endl;
         }
     }
 
-  if (simulation_parameters.post_processing.calculate_tracer_statistics)
-    {
-      calculate_tracer_statistics();
-      if (simulation_control->get_step_number() %
+    if (simulation_parameters.post_processing.calculate_tracer_statistics) {
+        calculate_tracer_statistics();
+        if (simulation_control->get_step_number() %
             this->simulation_parameters.post_processing.output_frequency ==
-          0)
-        this->write_tracer_statistics();
+            0)
+            this->write_tracer_statistics();
     }
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::calculate_tracer_statistics()
-{
-  auto mpi_communicator = triangulation->get_communicator();
+DGTracer<dim>::calculate_tracer_statistics() {
+    auto mpi_communicator = triangulation->get_communicator();
 
-  FEValues<dim> fe_values(*mapping,
-                          *fe,
-                          *cell_quadrature,
-                          update_values | update_gradients |
+    FEValues<dim> fe_values(*mapping,
+                            *fe,
+                            *cell_quadrature,
+                            update_values | update_gradients |
                             update_quadrature_points | update_JxW_values);
 
-  const unsigned int dofs_per_cell =
-    fe->dofs_per_cell; // This gives you dofs per cell
+    const unsigned int dofs_per_cell =
+            fe->dofs_per_cell; // This gives you dofs per cell
 
-  std::vector<types::global_dof_index> local_dof_indices(
-    dofs_per_cell); //  Local connectivity
+    std::vector<types::global_dof_index> local_dof_indices(
+            dofs_per_cell); //  Local connectivity
 
-  const unsigned int  n_q_points = cell_quadrature->size();
-  std::vector<double> q_tracer_values(n_q_points);
+    const unsigned int n_q_points = cell_quadrature->size();
+    std::vector<double> q_tracer_values(n_q_points);
 
-  double volume_integral  = 0;
-  double max_tracer_value = DBL_MIN;
-  double min_tracer_value = DBL_MAX;
+    double volume_integral = 0;
+    double max_tracer_value = DBL_MIN;
+    double min_tracer_value = DBL_MAX;
 
-  for (const auto &cell : dof_handler.active_cell_iterators())
-    {
-      if (cell->is_locally_owned())
-        {
-          fe_values.reinit(cell);
-          fe_values.get_function_values(present_solution, q_tracer_values);
+    for (const auto &cell : dof_handler.active_cell_iterators()) {
+        if (cell->is_locally_owned()) {
+            fe_values.reinit(cell);
+            fe_values.get_function_values(present_solution, q_tracer_values);
 
-          // Retrieve the effective "connectivity matrix" for this element
-          cell->get_dof_indices(local_dof_indices);
+            // Retrieve the effective "connectivity matrix" for this element
+            cell->get_dof_indices(local_dof_indices);
 
-          for (unsigned int q = 0; q < n_q_points; q++)
-            {
-              volume_integral += q_tracer_values[q] * fe_values.JxW(q);
-              max_tracer_value = std::max(q_tracer_values[q], max_tracer_value);
-              min_tracer_value = std::min(q_tracer_values[q], min_tracer_value);
+            for (unsigned int q = 0; q < n_q_points; q++) {
+                volume_integral += q_tracer_values[q] * fe_values.JxW(q);
+                max_tracer_value = std::max(q_tracer_values[q], max_tracer_value);
+                min_tracer_value = std::min(q_tracer_values[q], min_tracer_value);
             }
         }
     }
-  volume_integral      = Utilities::MPI::sum(volume_integral, mpi_communicator);
-  double global_volume = GridTools::volume(*triangulation, *mapping);
-  double tracer_average = volume_integral / global_volume;
+    volume_integral = Utilities::MPI::sum(volume_integral, mpi_communicator);
+    double global_volume = GridTools::volume(*triangulation, *mapping);
+    double tracer_average = volume_integral / global_volume;
 
-  double variance_integral = 0;
+    double variance_integral = 0;
 
-  for (const auto &cell : dof_handler.active_cell_iterators())
-    {
-      if (cell->is_locally_owned())
-        {
-          fe_values.reinit(cell);
-          fe_values.get_function_values(present_solution, q_tracer_values);
+    for (const auto &cell : dof_handler.active_cell_iterators()) {
+        if (cell->is_locally_owned()) {
+            fe_values.reinit(cell);
+            fe_values.get_function_values(present_solution, q_tracer_values);
 
-          // Retrieve the effective "connectivity matrix" for this element
-          cell->get_dof_indices(local_dof_indices);
+            // Retrieve the effective "connectivity matrix" for this element
+            cell->get_dof_indices(local_dof_indices);
 
-          for (unsigned int q = 0; q < n_q_points; q++)
-            {
-              variance_integral += (q_tracer_values[q] - tracer_average) *
-                                   (q_tracer_values[q] - tracer_average) *
-                                   fe_values.JxW(q);
+            for (unsigned int q = 0; q < n_q_points; q++) {
+                variance_integral += (q_tracer_values[q] - tracer_average) *
+                                     (q_tracer_values[q] - tracer_average) *
+                                     fe_values.JxW(q);
             }
         }
     }
 
-  variance_integral = Utilities::MPI::sum(variance_integral, mpi_communicator);
-  double tracer_variance      = variance_integral / global_volume;
-  double tracer_std_deviation = std::sqrt(tracer_variance);
+    variance_integral = Utilities::MPI::sum(variance_integral, mpi_communicator);
+    double tracer_variance = variance_integral / global_volume;
+    double tracer_std_deviation = std::sqrt(tracer_variance);
 
-  this->pcout << "Tracer statistics : " << std::endl;
-  this->pcout << "\t     Min : " << min_tracer_value << std::endl;
-  this->pcout << "\t     Max : " << max_tracer_value << std::endl;
-  this->pcout << "\t Average : " << tracer_average << std::endl;
-  this->pcout << "\t Std-Dev : " << tracer_std_deviation << std::endl;
+    this->pcout << "Tracer statistics : " << std::endl;
+    this->pcout << "\t     Min : " << min_tracer_value << std::endl;
+    this->pcout << "\t     Max : " << max_tracer_value << std::endl;
+    this->pcout << "\t Average : " << tracer_average << std::endl;
+    this->pcout << "\t Std-Dev : " << tracer_std_deviation << std::endl;
 
-  statistics_table.add_value("time", simulation_control->get_current_time());
-  statistics_table.add_value("min", min_tracer_value);
-  statistics_table.add_value("max", max_tracer_value);
-  statistics_table.add_value("average", tracer_average);
-  statistics_table.add_value("std-dev", tracer_std_deviation);
+    statistics_table.add_value("time", simulation_control->get_current_time());
+    statistics_table.add_value("min", min_tracer_value);
+    statistics_table.add_value("max", max_tracer_value);
+    statistics_table.add_value("average", tracer_average);
+    statistics_table.add_value("std-dev", tracer_std_deviation);
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::write_tracer_statistics()
-{
-  auto mpi_communicator = triangulation->get_communicator();
+DGTracer<dim>::write_tracer_statistics() {
+    auto mpi_communicator = triangulation->get_communicator();
 
-  if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-    {
-      std::string filename =
-        simulation_parameters.post_processing.tracer_output_name + ".dat";
-      std::ofstream output(filename.c_str());
+    if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0) {
+        std::string filename =
+                simulation_parameters.post_processing.tracer_output_name + ".dat";
+        std::ofstream output(filename.c_str());
 
-      statistics_table.write_text(output);
+        statistics_table.write_text(output);
     }
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::pre_mesh_adaptation()
-{
-  solution_transfer.prepare_for_coarsening_and_refinement(present_solution);
+DGTracer<dim>::pre_mesh_adaptation() {
+    solution_transfer.prepare_for_coarsening_and_refinement(present_solution);
 
-  for (unsigned int i = 0; i < previous_solutions.size(); ++i)
-    {
-      previous_solutions_transfer[i].prepare_for_coarsening_and_refinement(
-        previous_solutions[i]);
+    for (unsigned int i = 0; i < previous_solutions.size(); ++i) {
+        previous_solutions_transfer[i].prepare_for_coarsening_and_refinement(
+                previous_solutions[i]);
     }
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::post_mesh_adaptation()
-{
-  auto mpi_communicator = triangulation->get_communicator();
+DGTracer<dim>::post_mesh_adaptation() {
+    auto mpi_communicator = triangulation->get_communicator();
 
-  // Set up the vectors for the transfer
-  TrilinosWrappers::MPI::Vector tmp(locally_owned_dofs, mpi_communicator);
+    // Set up the vectors for the transfer
+    TrilinosWrappers::MPI::Vector tmp(locally_owned_dofs, mpi_communicator);
 
-  // Interpolate the solution at time and previous time
-  solution_transfer.interpolate(tmp);
+    // Interpolate the solution at time and previous time
+    solution_transfer.interpolate(tmp);
 
-  // Distribute constraints
-  nonzero_constraints.distribute(tmp);
+    // Distribute constraints
+    nonzero_constraints.distribute(tmp);
 
-  // Fix on the new mesh
-  present_solution = tmp;
+    // Fix on the new mesh
+    present_solution = tmp;
 
-  // Transfer previous solutions
-  for (unsigned int i = 0; i < previous_solutions.size(); ++i)
-    {
-      TrilinosWrappers::MPI::Vector tmp_previous_solution(locally_owned_dofs,
-                                                          mpi_communicator);
-      previous_solutions_transfer[i].interpolate(tmp_previous_solution);
-      nonzero_constraints.distribute(tmp_previous_solution);
-      previous_solutions[i] = tmp_previous_solution;
+    // Transfer previous solutions
+    for (unsigned int i = 0; i < previous_solutions.size(); ++i) {
+        TrilinosWrappers::MPI::Vector tmp_previous_solution(locally_owned_dofs,
+                                                            mpi_communicator);
+        previous_solutions_transfer[i].interpolate(tmp_previous_solution);
+        nonzero_constraints.distribute(tmp_previous_solution);
+        previous_solutions[i] = tmp_previous_solution;
     }
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::write_checkpoint()
-{
-  std::vector<const TrilinosWrappers::MPI::Vector *> sol_set_transfer;
+DGTracer<dim>::write_checkpoint() {
+    std::vector<const TrilinosWrappers::MPI::Vector *> sol_set_transfer;
 
-  sol_set_transfer.push_back(&present_solution);
-  for (unsigned int i = 0; i < previous_solutions.size(); ++i)
-    {
-      sol_set_transfer.push_back(&previous_solutions[i]);
+    sol_set_transfer.push_back(&present_solution);
+    for (unsigned int i = 0; i < previous_solutions.size(); ++i) {
+        sol_set_transfer.push_back(&previous_solutions[i]);
     }
-  solution_transfer.prepare_for_serialization(sol_set_transfer);
+    solution_transfer.prepare_for_serialization(sol_set_transfer);
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::read_checkpoint()
-{
-  auto mpi_communicator = triangulation->get_communicator();
-  this->pcout << "Reading tracer checkpoint" << std::endl;
+DGTracer<dim>::read_checkpoint() {
+    auto mpi_communicator = triangulation->get_communicator();
+    this->pcout << "Reading tracer checkpoint" << std::endl;
 
-  std::vector<TrilinosWrappers::MPI::Vector *> input_vectors(
-    1 + previous_solutions.size());
-  TrilinosWrappers::MPI::Vector distributed_system(locally_owned_dofs,
-                                                   mpi_communicator);
-  input_vectors[0] = &distributed_system;
+    std::vector<TrilinosWrappers::MPI::Vector *> input_vectors(
+            1 + previous_solutions.size());
+    TrilinosWrappers::MPI::Vector distributed_system(locally_owned_dofs,
+                                                     mpi_communicator);
+    input_vectors[0] = &distributed_system;
 
 
-  std::vector<TrilinosWrappers::MPI::Vector> distributed_previous_solutions;
-  distributed_previous_solutions.reserve(previous_solutions.size());
-  for (unsigned int i = 0; i < previous_solutions.size(); ++i)
-    {
-      distributed_previous_solutions.emplace_back(
-        TrilinosWrappers::MPI::Vector(locally_owned_dofs, mpi_communicator));
-      input_vectors[i + 1] = &distributed_previous_solutions[i];
+    std::vector<TrilinosWrappers::MPI::Vector> distributed_previous_solutions;
+    distributed_previous_solutions.reserve(previous_solutions.size());
+    for (unsigned int i = 0; i < previous_solutions.size(); ++i) {
+        distributed_previous_solutions.emplace_back(
+                TrilinosWrappers::MPI::Vector(locally_owned_dofs, mpi_communicator));
+        input_vectors[i + 1] = &distributed_previous_solutions[i];
     }
 
-  solution_transfer.deserialize(input_vectors);
+    solution_transfer.deserialize(input_vectors);
 
-  present_solution = distributed_system;
-  for (unsigned int i = 0; i < previous_solutions.size(); ++i)
-    {
-      previous_solutions[i] = distributed_previous_solutions[i];
+    present_solution = distributed_system;
+    for (unsigned int i = 0; i < previous_solutions.size(); ++i) {
+        previous_solutions[i] = distributed_previous_solutions[i];
     }
 }
 
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::setup_dofs()
-{
-  dof_handler.distribute_dofs(*fe);
-  DoFRenumbering::Cuthill_McKee(this->dof_handler);
+DGTracer<dim>::setup_dofs() {
+    dof_handler.distribute_dofs(*fe);
+    DoFRenumbering::Cuthill_McKee(this->dof_handler);
 
-  auto mpi_communicator = triangulation->get_communicator();
+    auto mpi_communicator = triangulation->get_communicator();
 
 
-  locally_owned_dofs = dof_handler.locally_owned_dofs();
-  DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+    locally_owned_dofs = dof_handler.locally_owned_dofs();
+    DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
 
-  present_solution.reinit(locally_owned_dofs,
-                          locally_relevant_dofs,
-                          mpi_communicator);
+    present_solution.reinit(locally_owned_dofs,
+                            locally_relevant_dofs,
+                            mpi_communicator);
 
-  // Previous solutions for transient schemes
-  for (auto &solution : this->previous_solutions)
-    {
-      solution.reinit(locally_owned_dofs,
-                      locally_relevant_dofs,
-                      mpi_communicator);
+    // Previous solutions for transient schemes
+    for (auto &solution : this->previous_solutions) {
+        solution.reinit(locally_owned_dofs,
+                        locally_relevant_dofs,
+                        mpi_communicator);
     }
 
-  system_rhs.reinit(locally_owned_dofs, mpi_communicator);
+    system_rhs.reinit(locally_owned_dofs, mpi_communicator);
 
-  newton_update.reinit(locally_owned_dofs, mpi_communicator);
+    newton_update.reinit(locally_owned_dofs, mpi_communicator);
 
-  local_evaluation_point.reinit(this->locally_owned_dofs, mpi_communicator);
+    local_evaluation_point.reinit(this->locally_owned_dofs, mpi_communicator);
 
-  {
-    nonzero_constraints.clear();
-    DoFTools::make_hanging_node_constraints(this->dof_handler,
-                                            nonzero_constraints);
+    {
+        nonzero_constraints.clear();
+        DoFTools::make_hanging_node_constraints(this->dof_handler,
+                                                nonzero_constraints);
 
-    for (unsigned int i_bc = 0;
-         i_bc < this->simulation_parameters.boundary_conditions_tracer.size;
-         ++i_bc)
-      {
-        // Dirichlet condition : imposed temperature at i_bc
-        if (this->simulation_parameters.boundary_conditions_tracer.type[i_bc] ==
-            BoundaryConditions::BoundaryType::tracer_dirichlet)
-          {
-            VectorTools::interpolate_boundary_values(
-              this->dof_handler,
-              this->simulation_parameters.boundary_conditions_tracer.id[i_bc],
-              *this->simulation_parameters.boundary_conditions_tracer
-                 .tracer[i_bc],
-              nonzero_constraints);
-          }
-      }
-  }
-  nonzero_constraints.close();
+        for (unsigned int i_bc = 0;
+             i_bc < this->simulation_parameters.boundary_conditions_tracer.size;
+             ++i_bc) {
+            // Dirichlet condition : imposed temperature at i_bc
+            if (this->simulation_parameters.boundary_conditions_tracer.type[i_bc] ==
+                BoundaryConditions::BoundaryType::tracer_dirichlet) {
+                VectorTools::interpolate_boundary_values(
+                        this->dof_handler,
+                        this->simulation_parameters.boundary_conditions_tracer.id[i_bc],
+                        *this->simulation_parameters.boundary_conditions_tracer
+                                .tracer[i_bc],
+                        nonzero_constraints);
+            }
+        }
+    }
+    nonzero_constraints.close();
 
-  // Boundary conditions for Newton correction
-  {
-    zero_constraints.clear();
-    DoFTools::make_hanging_node_constraints(this->dof_handler,
-                                            zero_constraints);
+    // Boundary conditions for Newton correction
+    {
+        zero_constraints.clear();
+        DoFTools::make_hanging_node_constraints(this->dof_handler,
+                                                zero_constraints);
 
-    for (unsigned int i_bc = 0;
-         i_bc < this->simulation_parameters.boundary_conditions_tracer.size;
-         ++i_bc)
-      {
-        if (this->simulation_parameters.boundary_conditions_tracer.type[i_bc] ==
-            BoundaryConditions::BoundaryType::tracer_dirichlet)
-          {
-            VectorTools::interpolate_boundary_values(
-              this->dof_handler,
-              this->simulation_parameters.boundary_conditions_tracer.id[i_bc],
-              Functions::ZeroFunction<dim>(),
-              zero_constraints);
-          }
-      }
-  }
-  zero_constraints.close();
+        for (unsigned int i_bc = 0;
+             i_bc < this->simulation_parameters.boundary_conditions_tracer.size;
+             ++i_bc) {
+            if (this->simulation_parameters.boundary_conditions_tracer.type[i_bc] ==
+                BoundaryConditions::BoundaryType::tracer_dirichlet) {
+                VectorTools::interpolate_boundary_values(
+                        this->dof_handler,
+                        this->simulation_parameters.boundary_conditions_tracer.id[i_bc],
+                        Functions::ZeroFunction<dim>(),
+                        zero_constraints);
+            }
+        }
+    }
+    zero_constraints.close();
 
-  // Sparse matrices initialization
-  DynamicSparsityPattern dsp(this->dof_handler.n_dofs());
-  DoFTools::make_flux_sparsity_pattern(this->dof_handler,
-                                       dsp,
-                                       nonzero_constraints,
-                                       /*keep_constrained_dofs = */ true);
+    // Sparse matrices initialization
+    DynamicSparsityPattern dsp(this->dof_handler.n_dofs());
+    DoFTools::make_flux_sparsity_pattern(this->dof_handler,
+                                         dsp,
+                                         nonzero_constraints,
+            /*keep_constrained_dofs = */ true);
 
-  SparsityTools::distribute_sparsity_pattern(dsp,
-                                             locally_owned_dofs,
-                                             mpi_communicator,
-                                             locally_relevant_dofs);
-  system_matrix.reinit(locally_owned_dofs,
-                       locally_owned_dofs,
-                       dsp,
-                       mpi_communicator);
+    SparsityTools::distribute_sparsity_pattern(dsp,
+                                               locally_owned_dofs,
+                                               mpi_communicator,
+                                               locally_relevant_dofs);
+    system_matrix.reinit(locally_owned_dofs,
+                         locally_owned_dofs,
+                         dsp,
+                         mpi_communicator);
 
-  this->pcout << "   Number of tracer degrees of freedom: "
-              << dof_handler.n_dofs() << std::endl;
+    this->pcout << "   Number of tracer degrees of freedom: "
+                << dof_handler.n_dofs() << std::endl;
 
-  // Provide the tracer dof_handler and present solution pointers to the
-  // multiphysics interface
-  multiphysics->set_dof_handler(PhysicsID::dg_tracer, &this->dof_handler);
-  multiphysics->set_solution(PhysicsID::dg_tracer, &this->present_solution);
+    // Provide the tracer dof_handler and present solution pointers to the
+    // multiphysics interface
+    multiphysics->set_dof_handler(PhysicsID::dg_tracer, &this->dof_handler);
+    multiphysics->set_solution(PhysicsID::dg_tracer, &this->present_solution);
 }
 
-template <int dim>
+template<int dim>
 void
-DGTracer<dim>::set_initial_conditions()
-{
-  VectorTools::interpolate(*mapping,
-                           dof_handler,
-                           simulation_parameters.initial_condition->tracer,
-                           newton_update);
-  nonzero_constraints.distribute(newton_update);
-  present_solution = newton_update;
-  finish_time_step();
+DGTracer<dim>::set_initial_conditions() {
+    VectorTools::interpolate(*mapping,
+                             dof_handler,
+                             simulation_parameters.initial_condition->tracer,
+                             newton_update);
+    nonzero_constraints.distribute(newton_update);
+    present_solution = newton_update;
+    finish_time_step();
 }
 
-template <int dim>
+template<int dim>
 void
 DGTracer<dim>::solve_linear_system(const bool initial_step,
-                                   const bool /*renewed_matrix*/)
-{
-  auto mpi_communicator = triangulation->get_communicator();
+                                   const bool /*renewed_matrix*/) {
+    auto mpi_communicator = triangulation->get_communicator();
 
-  const AffineConstraints<double> &constraints_used =
-    initial_step ? nonzero_constraints : this->zero_constraints;
+    const AffineConstraints<double> &constraints_used =
+            initial_step ? nonzero_constraints : this->zero_constraints;
 
-  const double absolute_residual =
-    simulation_parameters.linear_solver.minimum_residual;
-  const double relative_residual =
-    simulation_parameters.linear_solver.relative_residual;
+    const double absolute_residual =
+            simulation_parameters.linear_solver.minimum_residual;
+    const double relative_residual =
+            simulation_parameters.linear_solver.relative_residual;
 
-  const double linear_solver_tolerance =
-    std::max(relative_residual * system_rhs.l2_norm(), absolute_residual);
+    const double linear_solver_tolerance =
+            std::max(relative_residual * system_rhs.l2_norm(), absolute_residual);
 
-  if (this->simulation_parameters.linear_solver.verbosity !=
-      Parameters::Verbosity::quiet)
-    {
-      this->pcout << "  -Tolerance of iterative solver is : "
-                  << linear_solver_tolerance << std::endl;
+    if (this->simulation_parameters.linear_solver.verbosity !=
+        Parameters::Verbosity::quiet) {
+        this->pcout << "  -Tolerance of iterative solver is : "
+                    << linear_solver_tolerance << std::endl;
     }
 
-  const double ilu_fill = simulation_parameters.linear_solver.ilu_precond_fill;
-  const double ilu_atol = simulation_parameters.linear_solver.ilu_precond_atol;
-  const double ilu_rtol = simulation_parameters.linear_solver.ilu_precond_rtol;
-  TrilinosWrappers::PreconditionILU::AdditionalData preconditionerOptions(
-    ilu_fill, ilu_atol, ilu_rtol, 0);
+    const double ilu_fill = simulation_parameters.linear_solver.ilu_precond_fill;
+    const double ilu_atol = simulation_parameters.linear_solver.ilu_precond_atol;
+    const double ilu_rtol = simulation_parameters.linear_solver.ilu_precond_rtol;
+    TrilinosWrappers::PreconditionILU::AdditionalData preconditionerOptions(
+            ilu_fill, ilu_atol, ilu_rtol, 0);
 
-  TrilinosWrappers::PreconditionILU ilu_preconditioner;
+    TrilinosWrappers::PreconditionILU ilu_preconditioner;
 
-  ilu_preconditioner.initialize(system_matrix, preconditionerOptions);
+    ilu_preconditioner.initialize(system_matrix, preconditionerOptions);
 
-  TrilinosWrappers::MPI::Vector completely_distributed_solution(
-    locally_owned_dofs, mpi_communicator);
+    TrilinosWrappers::MPI::Vector completely_distributed_solution(
+            locally_owned_dofs, mpi_communicator);
 
-  SolverControl solver_control(
-    simulation_parameters.linear_solver.max_iterations,
-    linear_solver_tolerance,
-    true,
-    true);
+    SolverControl solver_control(
+            simulation_parameters.linear_solver.max_iterations,
+            linear_solver_tolerance,
+            true,
+            true);
 
-  TrilinosWrappers::SolverGMRES::AdditionalData solver_parameters(
-    false, simulation_parameters.linear_solver.max_krylov_vectors);
-
-
-  TrilinosWrappers::SolverGMRES solver(solver_control, solver_parameters);
+    TrilinosWrappers::SolverGMRES::AdditionalData solver_parameters(
+            false, simulation_parameters.linear_solver.max_krylov_vectors);
 
 
-  solver.solve(system_matrix,
-               completely_distributed_solution,
-               system_rhs,
-               ilu_preconditioner);
+    TrilinosWrappers::SolverGMRES solver(solver_control, solver_parameters);
 
-  if (simulation_parameters.linear_solver.verbosity !=
-      Parameters::Verbosity::quiet)
-    {
-      this->pcout << "  -Iterative solver took : " << solver_control.last_step()
-                  << " steps " << std::endl;
+
+    solver.solve(system_matrix,
+                 completely_distributed_solution,
+                 system_rhs,
+                 ilu_preconditioner);
+
+    if (simulation_parameters.linear_solver.verbosity !=
+        Parameters::Verbosity::quiet) {
+        this->pcout << "  -Iterative solver took : " << solver_control.last_step()
+                    << " steps " << std::endl;
     }
 
-  constraints_used.distribute(completely_distributed_solution);
-  newton_update = completely_distributed_solution;
+    constraints_used.distribute(completely_distributed_solution);
+    newton_update = completely_distributed_solution;
 }
 
 
+template
+class DGTracer<2>;
 
-template class DGTracer<2>;
-template class DGTracer<3>;
+template
+class DGTracer<3>;

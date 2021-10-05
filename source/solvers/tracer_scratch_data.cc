@@ -54,7 +54,7 @@ void
 DGTracerScratchData<dim>::allocate()
 {
   // Cell allocations
-  { // Initialize size of arrays
+   // Initialize size of arrays
     this->cell_n_q_points = fe_values_tracer.get_quadrature().size();
     this->cell_n_dofs     = fe_values_tracer.get_fe().n_dofs_per_cell();
 
@@ -83,7 +83,6 @@ DGTracerScratchData<dim>::allocate()
       std::vector<std::vector<double>>(max_number_of_intermediary_stages(),
                                        std::vector<double>(cell_n_q_points));
 
-
     // Initialize arrays related to shape functions
     // Velocity shape functions
     this->cell_phi =
@@ -96,13 +95,12 @@ DGTracerScratchData<dim>::allocate()
     this->cell_laplacian_phi =
       std::vector<std::vector<double>>(cell_n_q_points,
                                        std::vector<double>(cell_n_dofs));
-  }
+
 
   // Face allocations
-  {
     // Initialize size of arrays
     this->face_n_q_points = fe_interface_values_tracer.get_quadrature().size();
-    this->face_n_dofs     = fe_values_tracer.get_fe().n_dofs_per_cell();
+    this->face_n_dofs = fe_interface_values_tracer.get_fe().n_dofs_per_cell();
 
     // Initialize arrays related to quadrature
     this->face_JxW = std::vector<double>(face_n_q_points);
@@ -131,7 +129,7 @@ DGTracerScratchData<dim>::allocate()
 
     // Initialize arrays related to shape functions
     // Velocity shape functions
-    this->face_phi =
+    this->face_jump =
       std::vector<std::vector<double>>(face_n_q_points,
                                        std::vector<double>(face_n_dofs));
     this->face_grad_phi = std::vector<std::vector<Tensor<1, dim>>>(
@@ -141,7 +139,56 @@ DGTracerScratchData<dim>::allocate()
     this->face_laplacian_phi =
       std::vector<std::vector<double>>(face_n_q_points,
                                        std::vector<double>(face_n_dofs));
-  }
+
+    /*
+    // Boundary allocations
+    // Initialize size of arrays
+    std::cout<<"before fe_face allocation"<<std::endl;
+    const FEFaceValuesBase<dim> &fe_face = this->fe_interface_values_tracer.get_fe_face_values(0);
+    std::cout<<"after fe_face allocation"<<std::endl;
+    this->boundary_n_q_points = 1; //TODO REMOVE TBD
+    this->boundary_n_dofs = 1;//TODO REMOVE TBD
+    std::cout<<"after fe_face get_quadrature and n dof"<<std::endl;
+
+    // Initialize arrays related to quadrature
+    this->boundary_JxW = std::vector<double>(boundary_n_q_points);
+
+    // Forcing term array
+    this->boundary_source = std::vector<double>(boundary_n_q_points);
+
+    // Initialize arrays related to velocity and pressure
+    this->boundary_velocities.first_vector_component = 0;
+    // Velocity
+    this->boundary_velocity_values = std::vector<Tensor<1, dim>>(boundary_n_q_points);
+    // Tracer
+    this->boundary_tracer_values     = std::vector<double>(boundary_n_q_points);
+    this->boundary_tracer_gradients  = std::vector<Tensor<1, dim>>(boundary_n_q_points);
+    this->boundary_tracer_laplacians = std::vector<double>(boundary_n_q_points);
+
+    // Velocity for BDF schemes
+    this->boundary_previous_tracer_values =
+            std::vector<std::vector<double>>(maximum_number_of_previous_solutions(),
+                                             std::vector<double>(boundary_n_q_points));
+
+    // Velocity for SDIRK schemes
+    this->boundary_stages_tracer_values =
+            std::vector<std::vector<double>>(max_number_of_intermediary_stages(),
+                                             std::vector<double>(boundary_n_q_points));
+
+    // Initialize arrays related to shape functions
+    // Velocity shape functions
+    this->boundary_phi =
+            std::vector<std::vector<double>>(boundary_n_q_points,
+                                             std::vector<double>(boundary_n_dofs));
+    this->boundary_grad_phi = std::vector<std::vector<Tensor<1, dim>>>(
+            face_n_q_points, std::vector<Tensor<1, dim>>(boundary_n_dofs));
+    this->boundary_hess_phi = std::vector<std::vector<Tensor<2, dim>>>(
+            face_n_q_points, std::vector<Tensor<2, dim>>(boundary_n_dofs));
+    this->boundary_laplacian_phi =
+            std::vector<std::vector<double>>(boundary_n_q_points,
+                                             std::vector<double>(boundary_n_dofs));
+                                             */
+
 }
 
 

@@ -255,25 +255,38 @@ public:
   std::vector<Tensor<1, dim>> velocity_values;
 };
 
+
 /**
  * @brief DGTracerScratchData class
  * stores the information required by the assembly procedure
- * for a Tracer advection-diffusion equation with discontinuous Galerkin
- *formulation
+ * for a Tracer advection-diffusion equation with DG formulation. Consequently,
+ *this class calculates the tracer (values, gradients, laplacians) and the shape
+ *function (values, gradients, laplacians) at all the gauss points for all
+ *degrees of freedom and stores it into arrays. Additionnally, the user can
+ *request that this class gathers additional fields for physics which are
+ *coupled to the Tracer equation, such as the velocity which is required. This
+ *class serves as a separation between the evaluation at the gauss point of the
+ * variables of interest and their use in the assembly, which is carried out
+ * by the assembler functions. For more information on this design, the reader
+ * can consult deal.II step-9 and step-12
+ * "https://www.dealii.org/current/doxygen/deal.II/step_9.html".
+ * "https://www.dealii.org/current/doxygen/deal.II/step_12.html".
+ * In these examples, the scratch is a struct instead of a templated class
+ *because of their simplicity
  *
  * @tparam dim An integer that denotes the dimension of the space in which
  * the flow is solved
  *  @ingroup solvers
  **/
 template <int dim>
-class DGTracerScratchData : public TracerScratchData<dim>
+class DGTracerScratchData
 {
 public:
   /**
-   * @brief Constructor. The constructor creates the fe_values that will be used
-   * to fill the member variables of the scratch. It also allocated the
-   * necessary memory for all member variables. However, it does not do any
-   * evalution, since this needs to be done at the cell level.
+   * @brief Constructor. The constructor creates the fe_values and fe_interface_values
+   * that will be used to fill the member variables of the scratch. It also
+   * allocated the necessary memory for all member variables. However, it does
+   * not do any evalution, since this needs to be done at the cell level.
    *
    * @param fe The FESystem used to solve the Navier-Stokes equations
    *
@@ -282,29 +295,28 @@ public:
    * @param mapping The mapping of the domain in which the Navier-Stokes equations are solved
    *
    */
-  DGTracerScratchData(
-    const FiniteElement<dim> & fe_tracer,
-    const Quadrature<dim> &    quadrature,
-    const Quadrature<dim - 1> &face_quadrature,
-    const Mapping<dim> &       mapping,
-    const FiniteElement<dim> & fe_navier_stokes,
-    const UpdateFlags &update_flags = update_values | update_quadrature_points |
-                                      update_JxW_values | update_gradients |
-                                      update_hessians,
-    const UpdateFlags &interface_update_flags =
-      update_values | update_quadrature_points | update_JxW_values |
-      update_gradients | update_hessians | update_normal_vectors)
-    : TracerScratchData<dim>(fe_tracer,
-                             quadrature,
-                             mapping,
-                             fe_navier_stokes,
-                             update_flags)
+  DGTracerScratchData(const FiniteElement<dim> & fe_tracer,
+                      const Quadrature<dim> &    cell_quadrature,
+                      const Quadrature<dim - 1> &face_quadrature,
+                      const Mapping<dim> &       mapping,
+                      const FiniteElement<dim> & fe_navier_stokes,
+                      const UpdateFlags &        update_flags =
+                        update_values | update_quadrature_points |
+                        update_JxW_values | update_gradients | update_hessians,
+                      const UpdateFlags &interface_update_flags =
+                        update_values | update_quadrature_points |
+                        update_JxW_values | update_gradients | update_hessians)
+    : fe_values_tracer(mapping, fe_tracer, cell_quadrature, update_flags)
     , fe_interface_values_tracer(mapping,
                                  fe_tracer,
                                  face_quadrature,
                                  interface_update_flags)
+    , fe_values_navier_stokes(mapping,
+                              fe_navier_stokes,
+                              cell_quadrature,
+                              update_values)
   {
-    // TODO this->allocate();
+    allocate();
   }
 
   /**
@@ -320,23 +332,217 @@ public:
    *
    * @param mapping The mapping of the domain in which the Navier-Stokes equations are solved
    */
-  DGTracerScratchData(const DGTracerScratchData<dim> &sd)
-    : TracerScratchData<dim>(sd)
-    , fe_interface_values_tracer(sd.fe_interface_values_tracer.get_mapping(),
-                                 sd.fe_interface_values_tracer.get_fe(),
-                                 sd.fe_interface_values_tracer.get_quadrature(),
-                                 update_values | update_quadrature_points |
-                                   update_JxW_values | update_gradients |
-                                   update_hessians | update_normal_vectors)
+  DGTracerScratchData(const TracerScratchData<dim> &sd)
+    : fe_values_tracer(sd.fe_values_tracer.get_mapping(),
+                       sd.fe_values_tracer.get_fe(),
+                       sd.fe_values_tracer.get_quadrature(),
+                       sd.fe_values_tracer.get_update_flags())
+    , fe_interface_values_tracer(
+        sd.fe_interface_values_tracer.get_mapping(),
+        sd.fe_interface_values_tracer.get_fe(),
+        sd.fe_interface_values_tracer.get_quadrature(),
+        sd.fe_interface_values_tracer.get_update_flags())
+    , fe_values_navier_stokes(sd.fe_values_navier_stokes.get_mapping(),
+                              sd.fe_values_navier_stokes.get_fe(),
+                              sd.fe_values_navier_stokes.get_quadrature(),
+                              update_values)
   {
-    // TODO this->allocate();
+    allocate();
   }
 
 
+  /** @brief Allocates the memory for the scratch
+   *
+   * This function allocates the necessary memory for all members of the scratch
+   *
+   */
+  void
+  allocate();
+
+  /** @brief Reinitialize the content of the scratch
+   *
+   * Using the FeValues and the content ofthe solutions, previous solutions and
+   * solutions stages, fills all of the class member of the scratch
+   *
+   * @param cell The cell over which the assembly is being carried.
+   * This cell must be compatible with the fe which is used to fill the FeValues
+   *
+   * @param current_solution The present value of the solution for [u,p]
+   *
+   * @param previous_solutions The solutions at the previous time steps
+   *
+   * @param solution_stages The solution at the intermediary stages (for SDIRK methods)
+   *
+   * @param source_function The function describing the tracer source term
+   *
+   */
+
+  template <typename VectorType>
+  void
+  reinit(const typename DoFHandler<dim>::active_cell_iterator &cell,
+         const VectorType &                                    current_solution,
+         const std::vector<VectorType> &previous_solutions,
+         const std::vector<VectorType> &solution_stages,
+         Function<dim> *                source_function)
+  {
+    this->fe_values_tracer.reinit(cell);
+    this->fe_interface_values_tracer.reinit(cell);
+
+    cell_quadrature_points = this->fe_values_tracer.get_quadrature_points();
+    face_quadrature_points =
+      this->fe_interface_values_tracer.get_quadrature_points();
+    auto &fe_tracer = this->fe_values_tracer.get_fe();
+
+    source_function->value_list(cell_quadrature_points, cell_source);
+    source_function->value_list(face_quadrature_points, face_source);
+
+    if (dim == 2)
+      {
+        this->cell_size =
+          std::sqrt(4. * cell->measure() / M_PI) / fe_tracer.degree;
+        this->face_size = cell->measure() / M_PI /
+                          fe_tracer.degree; // TODO LOOK THE PROPER WAY TO DO IT
+      }
+    else if (dim == 3)
+      {
+        this->cell_size =
+          pow(6 * cell->measure() / M_PI, 1. / 3.) / fe_tracer.degree;
+        this->face_size = std::sqrt(4. * cell->measure() / M_PI) /
+                          fe_tracer.degree; // TODO LOOK THE PROPER WAY TO DO IT
+      }
+
+    // Gather tracer (values, gradient and laplacian)
+    this->fe_values_tracer.get_function_values(current_solution,
+                                               this->cell_tracer_values);
+    this->fe_values_tracer.get_function_gradients(current_solution,
+                                                  this->cell_tracer_gradients);
+    this->fe_values_tracer.get_function_laplacians(
+      current_solution, this->cell_tracer_laplacians);
+
+    this->fe_values_tracer.get_function_values(current_solution,
+                                               this->face_tracer_values);
+    this->fe_values_tracer.get_function_gradients(current_solution,
+                                                  this->face_tracer_gradients);
+    this->fe_values_tracer.get_function_laplacians(
+      current_solution, this->face_tracer_laplacians);
+
+    // Gather previous tracer values
+    for (unsigned int p = 0; p < previous_solutions.size(); ++p)
+      {
+        this->fe_values_tracer.get_function_values(
+          previous_solutions[p], cell_previous_tracer_values[p]);
+        this->fe_interface_values_tracer.get_function_values(
+          previous_solutions[p], face_previous_tracer_values[p]);
+      }
+
+    // Gather tracer stages
+    for (unsigned int s = 0; s < solution_stages.size(); ++s)
+      {
+        this->fe_values_tracer.get_function_values(
+          solution_stages[s], cell_stages_tracer_values[s]);
+        this->fe_values_tracer.get_function_values(
+          solution_stages[s], face_stages_tracer_values[s]);
+      }
+
+
+    for (unsigned int q = 0; q < cell_n_q_points; ++q)
+      {
+        this->cell_JxW[q] = this->fe_values_tracer.JxW(q);
+
+        for (unsigned int k = 0; k < cell_n_dofs; ++k)
+          {
+            // Shape function
+            this->cell_phi[q][k] = this->fe_values_tracer.shape_value(k, q);
+            this->cell_grad_phi[q][k] = this->fe_values_tracer.shape_grad(k, q);
+            this->cell_hess_phi[q][k] =
+              this->fe_values_tracer.shape_hessian(k, q);
+            this->cell_laplacian_phi[q][k] = trace(this->cell_hess_phi[q][k]);
+          }
+      }
+    for (unsigned int q = 0; q < face_n_q_points; ++q)
+      {
+        this->face_JxW[q] = this->fe_interface_values_tracer.JxW(q);
+
+        for (unsigned int k = 0; k < face_n_dofs; ++k)
+          {
+            // Shape function
+            this->face_phi[q][k] =
+              this->fe_interface_values_tracer.shape_value(k, q);
+            this->face_grad_phi[q][k] =
+              this->fe_interface_values_tracer.shape_grad(k, q);
+            this->face_hess_phi[q][k] =
+              this->fe_interface_values_tracer.shape_hessian(k, q);
+            this->face_laplacian_phi[q][k] = trace(this->face_hess_phi[q][k]);
+          }
+      }
+  }
+
+  template <typename VectorType>
+  void
+  reinit_velocity(const typename DoFHandler<dim>::active_cell_iterator &cell,
+                  const VectorType &current_solution)
+  {
+    this->fe_values_navier_stokes.reinit(cell);
+
+    this->cell_fe_values_navier_stokes[cell_velocities].get_function_values(
+      current_solution, cell_velocity_values);
+
+    this->face_fe_values_navier_stokes[face_velocities].get_function_values(
+      current_solution, face_velocity_values);
+  }
+
   // FEValues for the Tracer problem
+  FEValues<dim>          fe_values_tracer;
   FEInterfaceValues<dim> fe_interface_values_tracer;
+
+  /**
+   * Scratch component for the Navier-Stokes component
+   */
+  // This FEValues must mandatorily be instantiated for the velocity
+  FEValues<dim>               fe_values_navier_stokes;
+  FEValuesExtractors::Vector  cell_velocities;
+  std::vector<Tensor<1, dim>> cell_velocity_values;
+  FEValuesExtractors::Vector  face_velocities;
+  std::vector<Tensor<1, dim>> face_velocity_values;
+
+  unsigned int cell_n_dofs;
+  unsigned int cell_n_q_points;
+  double       cell_size;
+  unsigned int face_n_dofs;
+  unsigned int face_n_q_points;
+  double       face_size;
+
+  // Quadrature
+  std::vector<double>     cell_JxW;
+  std::vector<Point<dim>> cell_quadrature_points;
+  std::vector<double>     face_JxW;
+  std::vector<Point<dim>> face_quadrature_points;
+
+  // Tracer values
+  std::vector<double>              cell_tracer_values;
+  std::vector<Tensor<1, dim>>      cell_tracer_gradients;
+  std::vector<double>              cell_tracer_laplacians;
+  std::vector<std::vector<double>> cell_previous_tracer_values;
+  std::vector<std::vector<double>> cell_stages_tracer_values;
+  std::vector<double>              face_tracer_values;
+  std::vector<Tensor<1, dim>>      face_tracer_gradients;
+  std::vector<double>              face_tracer_laplacians;
+  std::vector<std::vector<double>> face_previous_tracer_values;
+  std::vector<std::vector<double>> face_stages_tracer_values;
+
+  // Source term
+  std::vector<double> cell_source;
+  std::vector<double> face_source;
+
+  // Shape functions
+  std::vector<std::vector<double>>         cell_phi;
+  std::vector<std::vector<Tensor<2, dim>>> cell_hess_phi;
+  std::vector<std::vector<double>>         cell_laplacian_phi;
+  std::vector<std::vector<Tensor<1, dim>>> cell_grad_phi;
+  std::vector<std::vector<double>>         face_phi;
+  std::vector<std::vector<Tensor<2, dim>>> face_hess_phi;
+  std::vector<std::vector<double>>         face_laplacian_phi;
+  std::vector<std::vector<Tensor<1, dim>>> face_grad_phi;
 };
-
-
 
 #endif

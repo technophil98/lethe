@@ -141,8 +141,6 @@ public:
  * class is specialized for Tensor<1,dim> equations because the strong
  * jacobian is stored using a Tensor<1,dim>
  **/
-
-
 template <int dim>
 class StabilizedMethodsTensorCopyData
 {
@@ -197,5 +195,108 @@ public:
   bool cell_is_cut;
 };
 
+/**
+ * @brief The DGMethodsCopyDataFace class is responsible for
+ * storing the information calculated using the assembly of DG
+ * scalar equations at interfaces. Like the CopyData class, this class is used
+ *to initialize, zero (reset) and store the cell_matrix and the cell_rhs.
+ * Contrary to the regular CopyData class, this class
+ * also stores the strong_residual and the strong_jacobian of the equation being
+ * assembled. This is useful for equations that implement residual-based
+ * stabilization such as SUPG. This class is specialized for single component
+ * equations because the strong jacobian is stored using a Vector<double>
+ **/
+class DGMethodsCopyDataFace
+{
+public:
+  /**
+   * @brief Constructor. Allocates the memory for the cell_matrix, cell_rhs
+   * and dof-indices using the number of dofs and the strong_residual using the
+   * number of quadrature points and, the strong_jacobian using both
+   *
+   * @param n_dofs Number of degrees of freedom per cell in the problem
+   *
+   * @param n_q_points Number of quadrature points
+   */
+  DGMethodsCopyDataFace(const unsigned int n_dofs,
+                        const unsigned int n_q_points)
+    : local_matrix(n_dofs, n_dofs)
+    , local_rhs(n_dofs)
+    , joint_dof_indices(n_dofs)
+  {}
+
+  /**
+   * @brief Resets the cell_matrix, cell_rhs, strong_residual
+   * and strong_jacobian to zero
+   */
+  void
+  reset()
+  {
+    local_matrix = 0;
+    local_rhs    = 0;
+  }
+
+  FullMatrix<double>                   local_matrix;
+  Vector<double>                       local_rhs;
+  std::vector<types::global_dof_index> joint_dof_indices;
+
+  // Boolean used to indicate if the cell being assembled is local or not
+  // This information is used to indicate to the copy_local_to_global function
+  // if it should indeed copy or not.
+  bool cell_is_local; // TODO check if necessary
+};
+
+/**
+ * @brief The DGMethodsCopyData class is responsible for
+ * storing the information calculated using the assembly of DG
+ * scalar equations. Like the CopyData class, this class is used to initialize,
+ * zero (reset) and store the cell_matrix and the cell_rhs.
+ * Contrary to the regular CopyData class, this class
+ * also stores the strong_residual and the strong_jacobian of the equation being
+ * assembled. This is useful for equations that implement residual-based
+ * stabilization such as SUPG. This class is specialized for single component
+ * equations because the strong jacobian is stored using a Vector<double>
+ **/
+class DGMethodsCopyData
+{
+public:
+  /**
+   * @brief Constructor. Allocates the memory for the cell_matrix, cell_rhs
+   * and dof-indices using the number of dofs and the strong_residual using the
+   * number of quadrature points and, the strong_jacobian using both
+   *
+   * @param n_dofs Number of degrees of freedom per cell in the problem
+   *
+   * @param n_q_points Number of quadrature points
+   */
+  DGMethodsCopyData(const unsigned int n_dofs, const unsigned int n_q_points)
+    : local_matrix(n_dofs, n_dofs)
+    , local_rhs(n_dofs)
+    , local_dof_indices(n_dofs)
+  {}
+  // TODO ENLEVER SI NÉCESSAIRE, face_data(dim*2,
+  // DGMethodsCopyDataFace(n_dofs,n_q_points))
+
+  /**
+   * @brief Resets the cell_matrix, cell_rhs, strong_residual
+   * and strong_jacobian to zero
+   */
+  void
+  reset()
+  {
+    local_matrix = 0;
+    local_rhs    = 0;
+  }
+
+  FullMatrix<double>                   local_matrix;
+  Vector<double>                       local_rhs;
+  std::vector<types::global_dof_index> local_dof_indices;
+  std::vector<DGMethodsCopyDataFace>   face_data;
+
+  // Boolean used to indicate if the cell being assembled is local or not
+  // This information is used to indicate to the copy_local_to_global function
+  // if it should indeed copy or not.
+  bool cell_is_local; // TODO check if necessary
+};
 
 #endif

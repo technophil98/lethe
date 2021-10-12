@@ -118,7 +118,7 @@ GLSSharpNavierStokesSolver<dim>::define_particles()
     }
 
   table_p.resize(particles.size());
-  ib_dem.initialize(this->simulation_parameters,this->mpi_communicator);
+  ib_dem.initialize(this->simulation_parameters,this->mpi_communicator,particles);
 }
 
 
@@ -1665,7 +1665,7 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
   particle_residual = 0;
   if (this->simulation_parameters.particlesParameters->integrate_motion)
     {
-      ib_dem.particles_dem( dt, this->simulation_control->is_at_start());
+      ib_dem.particles_dem( dt);
       for (unsigned int p = 0; p < particles.size(); ++p)
         {
           Tensor<1, dim> g;
@@ -1708,9 +1708,13 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
           // Define the gravity force applied on the particle based on his masse
           // Evaluate the velocity of the particle
 
+          particles[p].impulsion=ib_dem.dem_particles[p].impulsion;
+          particles[p].omega_impulsion=ib_dem.dem_particles[p].omega_impulsion;
+          particles[p].contact_impulsion=ib_dem.dem_particles[p].contact_impulsion;
+
           Tensor<1, dim> residual_velocity =
             particles[p].last_velocity +
-            (ib_dem.dem_particles[p].impulsion+ib_dem.dem_particles[p].contact_impulsion )/ particles[p].mass - particles[p].velocity;
+            (particles[p].impulsion +particles[p].contact_impulsion)/ particles[p].mass - particles[p].velocity;
 
           Tensor<2, dim> jac_velocity;
           if (particles[p].impulsion_iter.norm() == 0)
@@ -1718,7 +1722,7 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
               for (unsigned int d = 0; d < dim; ++d)
                 {
                   jac_velocity[d][d] =
-                    -1 - 0.25 * volume * rho / particles[p].mass;
+                    -1 - 0.5 * volume * rho / particles[p].mass;
                 }
             }
           else
@@ -1728,42 +1732,26 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
                   if ((particles[p].velocity[d] -
                        particles[p].velocity_iter[d]) != 0)
                     jac_velocity[d][d] =
-                      -1 + (ib_dem.dem_particles[p].impulsion[d] -
-                            ib_dem.dem_particles[p].impulsion_iter[d]) /
-                             (ib_dem.dem_particles[p].velocity[d] -
-                              ib_dem.dem_particles[p].velocity_iter[d]) /
+                      -1 + (particles[p].impulsion[d] -
+                            particles[p].impulsion_iter[d]) /
+                             (particles[p].velocity[d] -
+                              particles[p].velocity_iter[d]) /
                              particles[p].mass;
                   else
                     jac_velocity[d][d] =
-                      -1 - 0.25 * volume * rho / particles[p].mass;
+                      -1 - 0.5 * volume * rho / particles[p].mass;
                 }
             }
           particles[p].velocity_iter = particles[p].velocity;
           particles[p].velocity =
             particles[p].velocity_iter -
             residual_velocity * invert(jac_velocity) * alpha  ;
-
-
           particles[p].impulsion_iter = particles[p].impulsion;
+
           if(particles[p].contact_impulsion.norm()<1e-12)
-            particles[p].position=particles[p].last_position+(particles[p].last_velocity+particles[p].velocity)*0.5*dt;
+            particles[p].position=particles[p].last_position+(particles[p].velocity)*0.5*dt;
           else
             particles[p].position=ib_dem.dem_particles[p].position;
-
-
-          if (this->simulation_parameters.non_linear_solver.verbosity !=
-              Parameters::Verbosity::quiet)
-            {
-              this->pcout<< " contact_impulsion " <<particles[p].contact_impulsion<<std::endl;
-              this->pcout << "particle " << p << " residual "
-                          << residual_velocity.norm() << " particle velocity"
-                          << particles[p].velocity
-                          << " residual "
-                          << (particles[p].position-ib_dem.dem_particles[p].position).norm()
-                          << " particle position "
-                          << particles[p].position << std::endl;
-            }
-
 
           // For the rotation velocity : same logic as the velocity.
           auto         inv_inertia = invert(particles[p].inertia);
@@ -1802,9 +1790,23 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
           particles[p].omega      = particles[p].omega_iter -
                                residual_omega * invert(jac_omega) * alpha;
 
-
           particles[p].omega_impulsion_iter = particles[p].omega_impulsion;
+
+
           double this_particle_residual=sqrt(residual_velocity.norm()*residual_velocity.norm()+residual_omega.norm()*residual_omega.norm());
+
+          if (this->simulation_parameters.non_linear_solver.verbosity !=
+              Parameters::Verbosity::quiet)
+            {
+              this->pcout<< " contact_impulsion " <<particles[p].contact_impulsion<<std::endl;
+              this->pcout << "particle " << p << " residual "
+                          << residual_velocity.norm() << " particle velocity"
+                          << particles[p].velocity
+                          << " residual "
+                          << (particles[p].position-ib_dem.dem_particles[p].position).norm()
+                          << " particle position "
+                          << particles[p].position << std::endl;
+            }
           particles[p].residual=this_particle_residual;
           if(this_particle_residual>particle_residual)
             particle_residual=this_particle_residual;

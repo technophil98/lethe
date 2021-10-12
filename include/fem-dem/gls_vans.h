@@ -81,10 +81,16 @@ private:
   initialize_void_fraction();
 
   void
-  assemble_L2_projection_void_fraction();
+  particle_centered_method();
+
+  void
+  quadrature_centered_sphere_method();
 
   void
   solve_L2_system_void_fraction();
+
+  void
+  vertices_cell_mapping();
 
   /**
    * @brief finish_time_step
@@ -244,6 +250,10 @@ protected:
   const bool   PSPG        = true;
   const bool   SUPG        = true;
   const double GLS_u_scale = 1;
+
+  std::map<unsigned int,
+           std::set<typename DoFHandler<dim>::active_cell_iterator>>
+    vertices_to_cell;
 
 protected:
   Particles::ParticleHandler<dim, dim> particle_handler;

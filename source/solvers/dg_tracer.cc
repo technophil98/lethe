@@ -200,7 +200,7 @@ DGTracer<dim>::assemble_system_matrix() {
             const unsigned int n_q_points = scratch_data.face_n_q_points;
             const unsigned int n_dofs = scratch_data.face_n_dofs;
 
-            copy_data.face_data.emplace_back(n_dofs, n_q_points);
+            copy_data.face_data.emplace_back(n_dofs);
             DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
             copy_data_face.joint_dof_indices = fe_iv.get_interface_dof_indices();
 
@@ -404,8 +404,7 @@ std::cout<<"after reinit_boundary"<<std::endl;
                           cell_worker,
                           copier,
                           scratch_data,
-                          DGMethodsCopyData(this->fe->n_dofs_per_cell(),
-                                            this->cell_quadrature->size()),
+                          DGMethodsCopyData(this->fe->n_dofs_per_cell()),
                           MeshWorker::assemble_own_cells |
                           MeshWorker::assemble_boundary_faces |
                           MeshWorker::assemble_own_interior_faces_once,
@@ -689,8 +688,7 @@ DGTracer<dim>::assemble_system_rhs() {
                           cell_worker,
                           copier,
                           scratch_data,
-                          DGMethodsCopyData(this->fe->n_dofs_per_cell(),
-                                            this->cell_quadrature->size()),
+                          DGMethodsCopyData(this->fe->n_dofs_per_cell()),
                           MeshWorker::assemble_own_cells |
                           MeshWorker::assemble_boundary_faces |
                           MeshWorker::assemble_own_interior_faces_once,

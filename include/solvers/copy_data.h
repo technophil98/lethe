@@ -199,35 +199,25 @@ public:
  * @brief The DGMethodsCopyDataFace class is responsible for
  * storing the information calculated using the assembly of DG
  * scalar equations at interfaces. Like the CopyData class, this class is used
- *to initialize, zero (reset) and store the cell_matrix and the cell_rhs.
- * Contrary to the regular CopyData class, this class
- * also stores the strong_residual and the strong_jacobian of the equation being
- * assembled. This is useful for equations that implement residual-based
- * stabilization such as SUPG. This class is specialized for single component
- * equations because the strong jacobian is stored using a Vector<double>
+ * to initialize, zero (reset) and store the cell_matrix and the cell_rhs.
  **/
 class DGMethodsCopyDataFace
 {
 public:
   /**
    * @brief Constructor. Allocates the memory for the cell_matrix, cell_rhs
-   * and dof-indices using the number of dofs and the strong_residual using the
-   * number of quadrature points and, the strong_jacobian using both
+   * and dof-indices using the number of dofs
    *
    * @param n_dofs Number of degrees of freedom per cell in the problem
-   *
-   * @param n_q_points Number of quadrature points
    */
-  DGMethodsCopyDataFace(const unsigned int n_dofs,
-                        const unsigned int n_q_points)
+  DGMethodsCopyDataFace(const unsigned int n_dofs)
     : local_matrix(n_dofs, n_dofs)
     , local_rhs(n_dofs)
     , joint_dof_indices(n_dofs)
   {}
 
   /**
-   * @brief Resets the cell_matrix, cell_rhs, strong_residual
-   * and strong_jacobian to zero
+   * @brief Resets the cell_matrix and cell_rhs
    */
   void
   reset()
@@ -251,25 +241,17 @@ public:
  * storing the information calculated using the assembly of DG
  * scalar equations. Like the CopyData class, this class is used to initialize,
  * zero (reset) and store the cell_matrix and the cell_rhs.
- * Contrary to the regular CopyData class, this class
- * also stores the strong_residual and the strong_jacobian of the equation being
- * assembled. This is useful for equations that implement residual-based
- * stabilization such as SUPG. This class is specialized for single component
- * equations because the strong jacobian is stored using a Vector<double>
  **/
 class DGMethodsCopyData
 {
 public:
   /**
    * @brief Constructor. Allocates the memory for the cell_matrix, cell_rhs
-   * and dof-indices using the number of dofs and the strong_residual using the
-   * number of quadrature points and, the strong_jacobian using both
+   * and dof-indices using the number of dofs
    *
    * @param n_dofs Number of degrees of freedom per cell in the problem
-   *
-   * @param n_q_points Number of quadrature points
    */
-  DGMethodsCopyData(const unsigned int n_dofs, const unsigned int n_q_points)
+  DGMethodsCopyData(const unsigned int n_dofs)
     : local_matrix(n_dofs, n_dofs)
     , local_rhs(n_dofs)
     , local_dof_indices(n_dofs)
@@ -278,8 +260,7 @@ public:
   // DGMethodsCopyDataFace(n_dofs,n_q_points))
 
   /**
-   * @brief Resets the cell_matrix, cell_rhs, strong_residual
-   * and strong_jacobian to zero
+   * @brief Resets the cell_matrix, cell_rhs
    */
   void
   reset()

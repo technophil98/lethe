@@ -54,20 +54,17 @@ DGTracer<dim>::assemble_system_matrix() {
 
     const DoFHandler<dim> *dof_handler_fluid =
             multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
-    std::cout << "before scratch data initialization" << std::endl;
     auto scratch_data = DGTracerScratchData<dim>(*this->fe,
                                                  *this->cell_quadrature,
                                                  *this->face_quadrature,
                                                  *this->mapping,
                                                  dof_handler_fluid->get_fe());
 
-    std::cout << "after scratch data initialization" << std::endl;
     using Iterator = typename DoFHandler<dim>::active_cell_iterator;
 
     const auto cell_worker = [&](const Iterator &cell,
                                  DGTracerScratchData<dim> &scratch_data,
                                  DGMethodsCopyData &copy_data) {
-        std::cout << "cell_worker matrix" << std::endl;
         copy_data.cell_is_local = cell->is_locally_owned();
         if (!cell->is_locally_owned())
             return;
@@ -157,7 +154,6 @@ DGTracer<dim>::assemble_system_matrix() {
                                  const unsigned int &nsf,
                                  DGTracerScratchData<dim> &scratch_data,
                                  DGMethodsCopyData &copy_data) {
-        std::cout << "face_worker matrix" << std::endl;
         copy_data.cell_is_local = cell->is_locally_owned();
         if (!cell->is_locally_owned())
             return;
@@ -269,21 +265,18 @@ DGTracer<dim>::assemble_system_matrix() {
                                      const unsigned int &face_no,
                                      DGTracerScratchData<dim> &scratch_data,
                                      DGMethodsCopyData &copy_data) {
-        std::cout << "boundary_worker matrix" << std::endl;
         copy_data.cell_is_local = cell->is_locally_owned();
         if (!cell->is_locally_owned())
             return;
 
         auto &source_term = simulation_parameters.source_term->tracer_source;
         source_term.set_time(simulation_control->get_current_time());
-std::cout<<"before reinit_boundary"<<std::endl;
         scratch_data.reinit_boundary(cell,
                                      face_no,
                                      this->evaluation_point,
                                      this->previous_solutions,
                                      this->solution_stages,
                                      &source_term);
-std::cout<<"after reinit_boundary"<<std::endl;
 
         const DoFHandler<dim> *dof_handler_fluid =
                 multiphysics->get_dof_handler(PhysicsID::fluid_dynamics);
@@ -305,8 +298,6 @@ std::cout<<"after reinit_boundary"<<std::endl;
         {
             const FEFaceValuesBase<dim> &fe_face =scratch_data.fe_interface_values_tracer.get_fe_face_values(0);
 
-            std::cout << "created fe_face" << std::endl;
-
             // Scheme and physical properties
             const double diffusivity =
                     this->simulation_parameters.physical_properties.tracer_diffusivity;
@@ -317,9 +308,6 @@ std::cout<<"after reinit_boundary"<<std::endl;
             const unsigned int n_q_points = scratch_data.boundary_n_q_points;
             const unsigned int n_dofs = scratch_data.boundary_n_dofs;
             const double h = scratch_data.face_size;
-
-
-            std::cout << "created loop and quadrature informations" << std::endl;
 
             const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 
@@ -333,28 +321,17 @@ std::cout<<"after reinit_boundary"<<std::endl;
                         scratch_data.boundary_tracer_gradients[q];
                 const Tensor<1, dim> velocity = scratch_data.boundary_velocity_values[q];
 
-                std::cout << "entered loop 1" << std::endl;
                 // Store JxW in local variable for faster access;
                 const double JxW = JxW_vec[q];
-                std::cout << "created JxW variable" << std::endl;
 
-                std::cout << "velocity " << std::endl;
-                std::cout << velocity << std::endl;
-                std::cout << "normals[q] " << std::endl;
-                std::cout << normals[q] << std::endl;
-                std::cout << "beta_dot_n " << std::endl;
                 const double beta_dot_n = velocity * normals[q];
 
-                std::cout << "created beta dot n" << std::endl;
                 if (beta_dot_n > 0) {
-                    std::cout << "entered if" << std::endl;
                     for (unsigned int i = 0; i < n_dofs; ++i) {
 
-                        std::cout << "entered loop 2" << std::endl;
                         const auto grad_phi_T_i = scratch_data.boundary_grad_phi[q][i];
 
                         for (unsigned int j = 0; j < n_dofs; ++j) {
-                            std::cout << "entered loop 3" << std::endl;
                             const Tensor<1, dim> grad_phi_T_j =
                                     scratch_data.boundary_grad_phi[q][j];
                             const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
@@ -435,7 +412,6 @@ DGTracer<dim>::assemble_system_rhs() {
     const auto cell_worker = [&](const Iterator &cell,
                                  DGTracerScratchData<dim> &scratch_data,
                                  DGMethodsCopyData &copy_data) {
-        std::cout << "cell_worker rhs" << std::endl;
         copy_data.cell_is_local = cell->is_locally_owned();
         if (!cell->is_locally_owned())
             return;
@@ -519,7 +495,6 @@ DGTracer<dim>::assemble_system_rhs() {
                                  const unsigned int &nsf,
                                  DGTracerScratchData<dim> &scratch_data,
                                  DGMethodsCopyData &copy_data) {
-        std::cout << "face_worker rhs" << std::endl;
         copy_data.cell_is_local = cell->is_locally_owned();
         if (!cell->is_locally_owned())
             return;
@@ -572,7 +547,6 @@ DGTracer<dim>::assemble_system_rhs() {
                                      const unsigned int &face_no,
                                      DGTracerScratchData<dim> &scratch_data,
                                      DGMethodsCopyData &copy_data) {
-        std::cout << "boundary_worker rhs" << std::endl;
         copy_data.cell_is_local = cell->is_locally_owned();
         if (!cell->is_locally_owned())
             return;

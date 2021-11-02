@@ -315,8 +315,12 @@ public:
                               fe_navier_stokes,
                               cell_quadrature,
                               update_values)
+          , fe_interface_values_navier_stokes(mapping,
+                                       fe_navier_stokes,
+                                       face_quadrature,
+                                       interface_update_flags)
   {
-   allocate();
+    allocate();
   }
 
   /**
@@ -346,8 +350,13 @@ public:
                               sd.fe_values_navier_stokes.get_fe(),
                               sd.fe_values_navier_stokes.get_quadrature(),
                               update_values)
+          , fe_interface_values_navier_stokes(
+                  sd.fe_interface_values_navier_stokes.get_mapping(),
+                  sd.fe_interface_values_navier_stokes.get_fe(),
+                  sd.fe_interface_values_navier_stokes.get_quadrature(),
+                  sd.fe_interface_values_navier_stokes.get_update_flags())
   {
-      allocate();
+    allocate();
   }
 
 
@@ -378,11 +387,11 @@ public:
    */
   template <typename VectorType>
   void
-  reinit_cell(const typename DoFHandler<dim>::active_cell_iterator &cell,
-              const VectorType &             current_solution,
-              const std::vector<VectorType> &previous_solutions,
-              const std::vector<VectorType> &solution_stages,
-              Function<dim> *                source_function)
+  reinit(const typename DoFHandler<dim>::active_cell_iterator &cell,
+         const VectorType &                                    current_solution,
+         const std::vector<VectorType> &previous_solutions,
+         const std::vector<VectorType> &solution_stages,
+         Function<dim> *                source_function)
   {
     this->fe_values_tracer.reinit(cell);
 
@@ -459,22 +468,23 @@ public:
    */
   template <typename VectorType>
   void
-  reinit_face(const typename DoFHandler<dim>::active_cell_iterator &cell,
-              const unsigned int &                                  f,
-              const unsigned int &                                  sf,
-              const typename DoFHandler<dim>::active_cell_iterator &ncell,
-              const unsigned int &                                  nf,
-              const unsigned int &                                  nsf,
-              const VectorType &             current_solution,
-              const std::vector<VectorType> &previous_solutions,
-              const std::vector<VectorType> &solution_stages,
-              Function<dim> *                source_function)
+  reinit(const typename DoFHandler<dim>::active_cell_iterator &cell,
+         const unsigned int &                                  f,
+         const unsigned int &                                  sf,
+         const typename DoFHandler<dim>::active_cell_iterator &ncell,
+         const unsigned int &                                  nf,
+         const unsigned int &                                  nsf,
+         const VectorType &                                    current_solution,
+         const std::vector<VectorType> &previous_solutions,
+         const std::vector<VectorType> &solution_stages,
+         Function<dim> *                source_function)
   {
     this->fe_interface_values_tracer.reinit(cell, f, sf, ncell, nf, nsf);
 
-      this->face_normals = fe_interface_values_tracer.get_normal_vectors();
+    //this->face_n_dofs = this->fe_interface_values_tracer.n_current_interface_dofs();
 
-    face_quadrature_points =
+
+    this->face_quadrature_points =
       this->fe_interface_values_tracer.get_quadrature_points();
     auto &fe_tracer = this->fe_values_tracer.get_fe();
 
@@ -482,49 +492,47 @@ public:
 
     if (dim == 2)
       {
-        this->face_size = cell->measure() / M_PI /
-                          fe_tracer.degree; // TODO LOOK THE PROPER WAY TO DO IT
+        this->face_size = std::sqrt(4.*cell->measure() / M_PI ); // TODO LOOK THE PROPER WAY TO DO IT
       }
     else if (dim == 3)
       {
-        this->face_size = std::sqrt(4. * cell->measure() / M_PI) /
-                          fe_tracer.degree; // TODO LOOK THE PROPER WAY TO DO IT
+        this->face_size = pow(6. * cell->measure() / M_PI, 1./3); // TODO LOOK THE PROPER WAY TO DO IT
       }
-    /*
-        // Gather tracer (values, gradient and laplacian)
-        this->fe_interface_values_tracer.get_function_values(
+
+    this->face_JxW = this->fe_interface_values_tracer.get_JxW_values();
+      this->face_normals = this->fe_interface_values_tracer.get_normal_vectors();
+
+      // Gather tracer (values, gradient and laplacian)
+        this->fe_interface_values_tracer.get_fe_face_values(f).get_function_values(
           current_solution, this->face_tracer_values);
-        this->fe_interface_values_tracer.get_function_gradients(
+        this->fe_interface_values_tracer.get_fe_face_values(f).get_function_gradients(
           current_solution, this->face_tracer_gradients);
-        this->fe_interface_values_tracer.get_function_laplacians(
+        this->fe_interface_values_tracer.get_fe_face_values(f).get_function_laplacians(
           current_solution, this->face_tracer_laplacians);
 
         // Gather previous tracer values
         for (unsigned int p = 0; p < previous_solutions.size(); ++p)
           {
-            this->fe_interface_values_tracer.get_function_values(
+            this->fe_interface_values_tracer.get_fe_face_values(f).get_function_values(
               previous_solutions[p], face_previous_tracer_values[p]);
           }
 
         // Gather tracer stages
-        for (unsigned int s = 0; s < solution_stages.size(); ++s)
-          {
-            this->fe_interface_values_tracer.get_function_values(
-              solution_stages[s], face_stages_tracer_values[s]);
-          }
-     */
+        for (unsigned int s = 0; s < solution_stages.size(); ++s) {
+            this->fe_interface_values_tracer.get_fe_face_values(f).get_function_values(
+                    solution_stages[s], face_stages_tracer_values[s]);
+        }
+
     for (unsigned int q = 0; q < face_n_q_points; ++q)
       {
-        this->face_JxW[q] = this->fe_interface_values_tracer.JxW(q);
-
         for (unsigned int k = 0; k < face_n_dofs; ++k)
           {
             // Shape function
-            this->face_jump[q][k] = this->fe_interface_values_tracer.jump(k, q);
+            this->face_phi[q][k] = this->fe_interface_values_tracer.get_fe_face_values(f).shape_value(k, q);
             this->face_grad_phi[q][k] =
-              this->fe_interface_values_tracer.average_gradient(k, q);
+              this->fe_interface_values_tracer.get_fe_face_values(f).shape_grad(k, q);
             this->face_hess_phi[q][k] =
-              this->fe_interface_values_tracer.average_hessian(k, q);
+              this->fe_interface_values_tracer.get_fe_face_values(f).shape_hessian(k, q);
             this->face_laplacian_phi[q][k] = trace(this->face_hess_phi[q][k]);
           }
       }
@@ -549,21 +557,23 @@ public:
    */
   template <typename VectorType>
   void
-  reinit_boundary(const typename DoFHandler<dim>::active_cell_iterator &cell,
-                  const unsigned int &                                  face_no,
-                  const VectorType &             current_solution,
-                  const std::vector<VectorType> &previous_solutions,
-                  const std::vector<VectorType> &solution_stages,
-                  Function<dim> *                source_function)
+  reinit(const typename DoFHandler<dim>::active_cell_iterator &cell,
+         const unsigned int &                                  face_no,
+         const VectorType &                                    current_solution,
+         const std::vector<VectorType> &previous_solutions,
+         const std::vector<VectorType> &solution_stages,
+         Function<dim> *                source_function)
   {
     this->fe_interface_values_tracer.reinit(cell, face_no);
-    const FEFaceValuesBase<dim> & fe_face_values_tracer = this->fe_interface_values_tracer.get_fe_face_values(0);
+    const FEFaceValuesBase<dim> &fe_face_values_tracer =
+      this->fe_interface_values_tracer.get_fe_face_values(0);
 
-      this->boundary_quadrature_points = fe_face_values_tracer.get_quadrature_points();
-      this->boundary_JxW = fe_face_values_tracer.get_JxW_values();
-      this->boundary_normals = fe_face_values_tracer.get_normal_vectors();
-      this->boundary_n_dofs = fe_face_values_tracer.get_fe().n_dofs_per_cell();
-      this->boundary_n_q_points = this->boundary_quadrature_points.size();
+    this->boundary_quadrature_points =
+      fe_face_values_tracer.get_quadrature_points();
+    this->boundary_JxW     = fe_face_values_tracer.get_JxW_values();
+    this->boundary_normals = fe_face_values_tracer.get_normal_vectors();
+    this->boundary_n_dofs  = fe_face_values_tracer.get_fe().n_dofs_per_cell();
+    this->boundary_n_q_points = this->boundary_quadrature_points.size();
 
     auto &fe_tracer = this->fe_values_tracer.get_fe();
 
@@ -611,10 +621,11 @@ public:
             // Shape function
             this->boundary_phi[q][k] = fe_face_values_tracer.shape_value(k, q);
             this->boundary_grad_phi[q][k] =
-                    fe_face_values_tracer.shape_grad(k, q);
+              fe_face_values_tracer.shape_grad(k, q);
             this->boundary_hess_phi[q][k] =
-                    fe_face_values_tracer.shape_hessian(k, q);
-            this->boundary_laplacian_phi[q][k] = trace(this->boundary_hess_phi[q][k]);
+              fe_face_values_tracer.shape_hessian(k, q);
+            this->boundary_laplacian_phi[q][k] =
+              trace(this->boundary_hess_phi[q][k]);
           }
       }
   }
@@ -628,10 +639,23 @@ public:
 
     this->fe_values_navier_stokes[cell_velocities].get_function_values(
       current_solution, cell_velocity_values);
-
-    this->fe_values_navier_stokes[face_velocities].get_function_values(
-      current_solution, face_velocity_values);
   }
+
+    template <typename VectorType>
+    void
+    reinit_velocity(const typename DoFHandler<dim>::active_cell_iterator &cell ,
+                    const unsigned int &                                  f,
+                    const unsigned int &                                  sf,
+                    const typename DoFHandler<dim>::active_cell_iterator &ncell,
+                    const unsigned int &                                  nf,
+                    const unsigned int &                                  nsf,
+                    const VectorType &                                    current_solution)
+    {
+        this->fe_interface_values_navier_stokes.reinit(cell, f, sf, ncell, nf, nsf);
+
+        this->fe_interface_values_navier_stokes.get_fe_face_values(f)[face_velocities].get_function_values(
+                current_solution, face_velocity_values);
+    }
 
   // FEValues for the Tracer problem
   FEValues<dim>          fe_values_tracer;
@@ -642,12 +666,13 @@ public:
    */
   // This FEValues must mandatorily be instantiated for the velocity
   FEValues<dim>               fe_values_navier_stokes;
+    FEInterfaceValues<dim> fe_interface_values_navier_stokes;
   FEValuesExtractors::Vector  cell_velocities;
   std::vector<Tensor<1, dim>> cell_velocity_values;
-    FEValuesExtractors::Vector  face_velocities;
-    std::vector<Tensor<1, dim>> face_velocity_values;
-    FEValuesExtractors::Vector  boundary_velocities;
-    std::vector<Tensor<1, dim>> boundary_velocity_values;
+  FEValuesExtractors::Vector  face_velocities;
+  std::vector<Tensor<1, dim>> face_velocity_values;
+  FEValuesExtractors::Vector  boundary_velocities;
+  std::vector<Tensor<1, dim>> boundary_velocity_values;
 
 
   unsigned int cell_n_dofs;
@@ -656,16 +681,16 @@ public:
   unsigned int face_n_dofs;
   unsigned int face_n_q_points;
   double       face_size;
-    unsigned int boundary_n_dofs;
-    unsigned int boundary_n_q_points;
+  unsigned int boundary_n_dofs;
+  unsigned int boundary_n_q_points;
 
   // Quadrature
   std::vector<double>     cell_JxW;
   std::vector<Point<dim>> cell_quadrature_points;
   std::vector<double>     face_JxW;
   std::vector<Point<dim>> face_quadrature_points;
-    std::vector<double>     boundary_JxW;
-    std::vector<Point<dim>> boundary_quadrature_points;
+  std::vector<double>     boundary_JxW;
+  std::vector<Point<dim>> boundary_quadrature_points;
 
   // Tracer values
   std::vector<double>              cell_tracer_values;
@@ -678,33 +703,33 @@ public:
   std::vector<double>              face_tracer_laplacians;
   std::vector<std::vector<double>> face_previous_tracer_values;
   std::vector<std::vector<double>> face_stages_tracer_values;
-    std::vector<double>              boundary_tracer_values;
-    std::vector<Tensor<1, dim>>      boundary_tracer_gradients;
-    std::vector<double>              boundary_tracer_laplacians;
-    std::vector<std::vector<double>> boundary_previous_tracer_values;
-    std::vector<std::vector<double>> boundary_stages_tracer_values;
+  std::vector<double>              boundary_tracer_values;
+  std::vector<Tensor<1, dim>>      boundary_tracer_gradients;
+  std::vector<double>              boundary_tracer_laplacians;
+  std::vector<std::vector<double>> boundary_previous_tracer_values;
+  std::vector<std::vector<double>> boundary_stages_tracer_values;
 
   // Source term
   std::vector<double> cell_source;
-    std::vector<double> face_source;
-    std::vector<double> boundary_source;
+  std::vector<double> face_source;
+  std::vector<double> boundary_source;
 
   // Shape functions
   std::vector<std::vector<double>>         cell_phi;
   std::vector<std::vector<Tensor<2, dim>>> cell_hess_phi;
   std::vector<std::vector<double>>         cell_laplacian_phi;
   std::vector<std::vector<Tensor<1, dim>>> cell_grad_phi;
-  std::vector<std::vector<double>>         face_jump;
+  std::vector<std::vector<double>>         face_phi;
   std::vector<std::vector<Tensor<2, dim>>> face_hess_phi;
   std::vector<std::vector<double>>         face_laplacian_phi;
   std::vector<std::vector<Tensor<1, dim>>> face_grad_phi;
-    std::vector<std::vector<double>>         boundary_phi;
-    std::vector<std::vector<Tensor<2, dim>>> boundary_hess_phi;
-    std::vector<std::vector<double>>         boundary_laplacian_phi;
-    std::vector<std::vector<Tensor<1, dim>>> boundary_grad_phi;
+  std::vector<std::vector<double>>         boundary_phi;
+  std::vector<std::vector<Tensor<2, dim>>> boundary_hess_phi;
+  std::vector<std::vector<double>>         boundary_laplacian_phi;
+  std::vector<std::vector<Tensor<1, dim>>> boundary_grad_phi;
 
-    std::vector<Tensor<1,dim>> face_normals;
-    std::vector<Tensor<1,dim>> boundary_normals;
+  std::vector<Tensor<1, dim>> face_normals;
+  std::vector<Tensor<1, dim>> boundary_normals;
 };
 
 #endif

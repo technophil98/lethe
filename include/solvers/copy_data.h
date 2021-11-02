@@ -277,7 +277,7 @@ public:
   // Boolean used to indicate if the cell being assembled is local or not
   // This information is used to indicate to the copy_local_to_global function
   // if it should indeed copy or not.
-  bool cell_is_local; // TODO check if necessary
+  bool cell_is_local;
 };
 
 #endif

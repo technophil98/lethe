@@ -193,10 +193,6 @@ DGTracer<dim>::assemble_system_matrix()
       {
         scratch_data.reinit_velocity(velocity_cell,
                                      f,
-                                     sf,
-                                     ncell,
-                                     nf,
-                                     nsf,
                                      *multiphysics->get_block_solution(
                                        PhysicsID::fluid_dynamics));
       }
@@ -204,10 +200,6 @@ DGTracer<dim>::assemble_system_matrix()
       {
         scratch_data.reinit_velocity(velocity_cell,
                                      f,
-                                     sf,
-                                     ncell,
-                                     nf,
-                                     nsf,
                                      *multiphysics->get_solution(
                                        PhysicsID::fluid_dynamics));
       }
@@ -333,18 +325,26 @@ DGTracer<dim>::assemble_system_matrix()
     if (multiphysics->fluid_dynamics_is_block())
       {
         scratch_data.reinit_velocity(velocity_cell,
+                                     face_no,
                                      *multiphysics->get_block_solution(
                                        PhysicsID::fluid_dynamics));
       }
     else
       {
         scratch_data.reinit_velocity(velocity_cell,
+                                     face_no,
                                      *multiphysics->get_solution(
                                        PhysicsID::fluid_dynamics));
       }
     copy_data.reset();
 
-    {
+
+
+
+
+
+
+
       const FEFaceValuesBase<dim> &fe_face =
         scratch_data.fe_interface_values_tracer.get_fe_face_values(0);
 
@@ -391,22 +391,29 @@ DGTracer<dim>::assemble_system_matrix()
                       const Tensor<1, dim> grad_phi_T_j =
                         scratch_data.boundary_grad_phi[q][j];
                       const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
+
                       // Weak form : - D * laplacian T +  u * gradT - f=0
                       local_matrix(i, j) += fe_face.shape_value(i, q) // \phi_i
                                             *
                                             fe_face.shape_value(j, q) // \phi_j
                                             * beta_dot_n // \beta . n
                                             * JxW;       // dx
-                      local_matrix(i, j) -=
+                     /* local_matrix(i, j) -=
                         fe_face.shape_value(i, q) // \phi_i
                         * diffusivity             // D
                         * grad_phi_j_dot_n        //(\grad \phi_j . n)
                         * JxW;                    // dx
+                        */
                     }
                 }
             }
         } // end loop on quadrature points
-    }
+
+
+
+
+
+
 
     for (auto &assembler : this->assemblers)
       {
@@ -589,10 +596,6 @@ DGTracer<dim>::assemble_system_rhs()
       {
         scratch_data.reinit_velocity(velocity_cell,
                                      f,
-                                     sf,
-                                     ncell,
-                                     nf,
-                                     nsf,
                                      *multiphysics->get_block_solution(
                                        PhysicsID::fluid_dynamics));
       }
@@ -600,10 +603,6 @@ DGTracer<dim>::assemble_system_rhs()
       {
         scratch_data.reinit_velocity(velocity_cell,
                                      f,
-                                     sf,
-                                     ncell,
-                                     nf,
-                                     nsf,
                                      *multiphysics->get_solution(
                                        PhysicsID::fluid_dynamics));
       }
@@ -650,19 +649,26 @@ DGTracer<dim>::assemble_system_rhs()
     if (multiphysics->fluid_dynamics_is_block())
       {
         scratch_data.reinit_velocity(velocity_cell,
+                                     face_no,
                                      *multiphysics->get_block_solution(
                                        PhysicsID::fluid_dynamics));
       }
     else
       {
         scratch_data.reinit_velocity(velocity_cell,
+                                     face_no,
                                      *multiphysics->get_solution(
                                        PhysicsID::fluid_dynamics));
       }
 
     copy_data.reset();
 
-    {
+
+
+
+
+
+
       const FEFaceValuesBase<dim> &fe_face =
         scratch_data.fe_interface_values_tracer.get_fe_face_values(0);
 
@@ -722,7 +728,12 @@ DGTracer<dim>::assemble_system_rhs()
             }
 
         } // end loop on quadrature points
-    }
+
+
+
+
+
+
 
 
     for (auto &assembler : this->assemblers)

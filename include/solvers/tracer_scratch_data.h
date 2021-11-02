@@ -503,23 +503,23 @@ public:
       this->face_normals = this->fe_interface_values_tracer.get_normal_vectors();
 
       // Gather tracer (values, gradient and laplacian)
-        this->fe_interface_values_tracer.get_fe_face_values(f).get_function_values(
+        this->fe_interface_values_tracer.get_fe_face_values(0).get_function_values(
           current_solution, this->face_tracer_values);
-        this->fe_interface_values_tracer.get_fe_face_values(f).get_function_gradients(
+        this->fe_interface_values_tracer.get_fe_face_values(0).get_function_gradients(
           current_solution, this->face_tracer_gradients);
-        this->fe_interface_values_tracer.get_fe_face_values(f).get_function_laplacians(
+        this->fe_interface_values_tracer.get_fe_face_values(0).get_function_laplacians(
           current_solution, this->face_tracer_laplacians);
 
         // Gather previous tracer values
         for (unsigned int p = 0; p < previous_solutions.size(); ++p)
           {
-            this->fe_interface_values_tracer.get_fe_face_values(f).get_function_values(
+            this->fe_interface_values_tracer.get_fe_face_values(0).get_function_values(
               previous_solutions[p], face_previous_tracer_values[p]);
           }
 
         // Gather tracer stages
         for (unsigned int s = 0; s < solution_stages.size(); ++s) {
-            this->fe_interface_values_tracer.get_fe_face_values(f).get_function_values(
+            this->fe_interface_values_tracer.get_fe_face_values(0).get_function_values(
                     solution_stages[s], face_stages_tracer_values[s]);
         }
 
@@ -528,11 +528,11 @@ public:
         for (unsigned int k = 0; k < face_n_dofs; ++k)
           {
             // Shape function
-            this->face_phi[q][k] = this->fe_interface_values_tracer.get_fe_face_values(f).shape_value(k, q);
+            this->face_phi[q][k] = this->fe_interface_values_tracer.get_fe_face_values(0).shape_value(k, q);
             this->face_grad_phi[q][k] =
-              this->fe_interface_values_tracer.get_fe_face_values(f).shape_grad(k, q);
+              this->fe_interface_values_tracer.get_fe_face_values(0).shape_grad(k, q);
             this->face_hess_phi[q][k] =
-              this->fe_interface_values_tracer.get_fe_face_values(f).shape_hessian(k, q);
+              this->fe_interface_values_tracer.get_fe_face_values(0).shape_hessian(k, q);
             this->face_laplacian_phi[q][k] = trace(this->face_hess_phi[q][k]);
           }
       }
@@ -565,6 +565,7 @@ public:
          Function<dim> *                source_function)
   {
     this->fe_interface_values_tracer.reinit(cell, face_no);
+
     const FEFaceValuesBase<dim> &fe_face_values_tracer =
       this->fe_interface_values_tracer.get_fe_face_values(0);
 
@@ -581,41 +582,38 @@ public:
 
     if (dim == 2)
       {
-        this->face_size = cell->measure() / M_PI /
-                          fe_tracer.degree; // TODO LOOK THE PROPER WAY TO DO IT
+        this->face_size = std::sqrt(4. * cell->measure() / M_PI);
       }
     else if (dim == 3)
       {
-        this->face_size = std::sqrt(4. * cell->measure() / M_PI) /
-                          fe_tracer.degree; // TODO LOOK THE PROPER WAY TO DO IT
+        this->face_size = pwe(6. * cell->measure() / M_PI, 1. /3);
       }
-    /*
+/*
         // Gather tracer (values, gradient and laplacian)
-        this->fe_interface_values_tracer.get_function_values(
-          current_solution, this->face_tracer_values);
-        this->fe_interface_values_tracer.get_function_gradients(
-          current_solution, this->face_tracer_gradients);
-        this->fe_interface_values_tracer.get_function_laplacians(
-          current_solution, this->face_tracer_laplacians);
+        this->fe_interface_values_tracer.get_fe_face_values(0).get_function_values(
+          current_solution, this->boundary_tracer_values);
+        this->fe_interface_values_tracer.get_fe_face_values(0).get_function_gradients(
+          current_solution, this->boundary_tracer_gradients);
+        this->fe_interface_values_tracer.get_fe_face_values(0).get_function_laplacians(
+          current_solution, this->boundary_tracer_laplacians);
 
         // Gather previous tracer values
         for (unsigned int p = 0; p < previous_solutions.size(); ++p)
           {
-            this->fe_interface_values_tracer.get_function_values(
-              previous_solutions[p], face_previous_tracer_values[p]);
+            this->fe_interface_values_tracer.get_fe_face_values(0).get_function_values(
+              previous_solutions[p], boundary_previous_tracer_values[p]);
           }
 
         // Gather tracer stages
         for (unsigned int s = 0; s < solution_stages.size(); ++s)
           {
             this->fe_interface_values_tracer.get_function_values(
-              solution_stages[s], face_stages_tracer_values[s]);
+              solution_stages[s], boundary_stages_tracer_values[s]);
           }
-     */
+          */
+
     for (unsigned int q = 0; q < boundary_n_q_points; ++q)
       {
-        this->boundary_JxW[q] = fe_face_values_tracer.JxW(q);
-
         for (unsigned int k = 0; k < boundary_n_dofs; ++k)
           {
             // Shape function
@@ -644,16 +642,12 @@ public:
     template <typename VectorType>
     void
     reinit_velocity(const typename DoFHandler<dim>::active_cell_iterator &cell ,
-                    const unsigned int &                                  f,
-                    const unsigned int &                                  sf,
-                    const typename DoFHandler<dim>::active_cell_iterator &ncell,
-                    const unsigned int &                                  nf,
-                    const unsigned int &                                  nsf,
+                    const unsigned int &                                  face_no,
                     const VectorType &                                    current_solution)
     {
-        this->fe_interface_values_navier_stokes.reinit(cell, f, sf, ncell, nf, nsf);
+        this->fe_interface_values_navier_stokes.reinit(cell, face_no);
 
-        this->fe_interface_values_navier_stokes.get_fe_face_values(f)[face_velocities].get_function_values(
+        this->fe_interface_values_navier_stokes.get_fe_face_values(0)[face_velocities].get_function_values(
                 current_solution, face_velocity_values);
     }
 

@@ -96,7 +96,6 @@ DGTracerScratchData<dim>::allocate()
     std::vector<std::vector<double>>(cell_n_q_points,
                                      std::vector<double>(cell_n_dofs));
 
-
   // Face allocations
   // Initialize size of arrays
   this->face_n_q_points = fe_interface_values_tracer.get_quadrature().size();

@@ -207,86 +207,74 @@ DGTracer<dim>::assemble_system_matrix()
 
 
 
+    FEInterfaceValues<dim> &fe_iv = scratch_data.fe_interface_values_tracer;
 
+    const auto &       JxW_vec    = scratch_data.face_JxW;
+    const unsigned int n_q_points = scratch_data.face_n_q_points;
+    const unsigned int n_dofs     = scratch_data.face_n_dofs;
 
+    copy_data.face_data.emplace_back(n_dofs);
+    DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
+    copy_data_face.joint_dof_indices      = fe_iv.get_interface_dof_indices();
 
+    copy_data_face.local_matrix.reinit(n_dofs, n_dofs);
 
-      FEInterfaceValues<dim> &fe_iv = scratch_data.fe_interface_values_tracer;
+    const std::vector<Tensor<1, dim>> &normals = scratch_data.face_normals;
 
-      const auto &       JxW_vec    = scratch_data.face_JxW;
-      const unsigned int n_q_points = scratch_data.face_n_q_points;
-      const unsigned int n_dofs     = scratch_data.face_n_dofs;
+    // Scheme and physical properties
+    const double diffusivity =
+      this->simulation_parameters.physical_properties.tracer_diffusivity;
+    const auto method = this->simulation_control->get_assembly_method();
 
-      copy_data.face_data.emplace_back(n_dofs);
-      DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
-      copy_data_face.joint_dof_indices      = fe_iv.get_interface_dof_indices();
+    // Loop and quadrature informations
+    const double h =
+      scratch_data.face_size; // TODO WILL IT BE SPECIFIED WITH FACE SCRATCH?
 
-      copy_data_face.local_matrix.reinit(n_dofs, n_dofs);
+    // Copy data elements
+    auto &local_matrix = copy_data_face.local_matrix;
 
-      const std::vector<Tensor<1, dim>> &normals =
-        scratch_data.face_normals;
+    // assembling local matrix and right hand side
+    for (unsigned int q = 0; q < n_q_points; ++q)
+      {
+        // Gather into local variables the relevant fields
+        const Tensor<1, dim> tracer_gradient =
+          scratch_data.face_tracer_gradients[q];
+        const Tensor<1, dim> velocity = scratch_data.face_velocity_values[q];
 
-      // Scheme and physical properties
-      const double diffusivity =
-        this->simulation_parameters.physical_properties.tracer_diffusivity;
-      const auto method = this->simulation_control->get_assembly_method();
+        // Store JxW in local variable for faster access;
+        const double JxW = JxW_vec[q];
 
-      // Loop and quadrature informations
-      const double h =
-        scratch_data.face_size; // TODO WILL IT BE SPECIFIED WITH FACE SCRATCH?
+        for (unsigned int i = 0; i < n_dofs; ++i)
+          {
+            const auto   grad_phi_T_i   = scratch_data.face_grad_phi[q][i];
+            const double velocity_dot_n = velocity * normals[q];
 
-      // Copy data elements
-      auto &local_matrix = copy_data_face.local_matrix;
+            for (unsigned int j = 0; j < n_dofs; ++j)
+              {
+                const Tensor<1, dim> grad_phi_T_j =
+                  scratch_data.face_grad_phi[q][j];
+                const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
 
-      // assembling local matrix and right hand side
-      for (unsigned int q = 0; q < n_q_points; ++q)
-        {
-          // Gather into local variables the relevant fields
-          const Tensor<1, dim> tracer_gradient =
-            scratch_data.face_tracer_gradients[q];
-          const Tensor<1, dim> velocity = scratch_data.face_velocity_values[q];
+                // Weak form : - D * laplacian T +  u * gradT - f=0
+                local_matrix(i, j) += -diffusivity * normals[q] *
+                                      fe_iv.average_gradient(i, q) *
+                                      fe_iv.jump(j, q) * JxW;
 
-          // Store JxW in local variable for faster access;
-          const double JxW = JxW_vec[q];
+                local_matrix(i, j) += -diffusivity * fe_iv.jump(i, q) // \phi_i
+                                      * fe_iv.average_gradient(j, q) *
+                                      normals[q] // n*\nabla \phi_j
+                                      * JxW;     // dx
+                const double BETA = 5.;          // penalization factor
+                local_matrix(i, j) += BETA * diffusivity / h *
+                                      fe_iv.jump(i, q) * fe_iv.jump(j, q) * JxW;
 
-          for (unsigned int i = 0; i < n_dofs; ++i)
-            {
-              const auto   grad_phi_T_i = scratch_data.face_grad_phi[q][i];
-              const double velocity_dot_n   = velocity * normals[q];
-
-              for (unsigned int j = 0; j < n_dofs; ++j)
-                {
-                  const Tensor<1, dim> grad_phi_T_j =
-                    scratch_data.face_grad_phi[q][j];
-                  const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
-
-                  // Weak form : - D * laplacian T +  u * gradT - f=0
-                    local_matrix(i, j) +=
-                            - diffusivity * normals[q] *
-                            fe_iv.average_gradient(i, q) * fe_iv.jump(j, q) *
-                            JxW;
-
-                    local_matrix(i, j) +=
-                            -diffusivity * fe_iv.jump(i, q) // \phi_i
-                            * fe_iv.average_gradient(j, q) *
-                            normals[q] // n*\nabla \phi_j
-                            * JxW;  // dx
-                    const double BETA = 5.; // penalization factor
-                    local_matrix(i, j) +=
-                            BETA * diffusivity / h * fe_iv.jump(i, q) *
-                            fe_iv.jump(j, q) * JxW;
-
-                    local_matrix(i, j) +=
-                            fe_iv.jump(i, q) // [\phi_i]
-                            * fe_iv.shape_value((velocity_dot_n > 0), j, q) *
-                            velocity_dot_n * JxW;
-                             }
-            }
-        } // end loop on quadrature points
-
-
-
-
+                local_matrix(i, j) +=
+                  fe_iv.jump(i, q) // [\phi_i]
+                  * fe_iv.shape_value((velocity_dot_n > 0), j, q) *
+                  velocity_dot_n * JxW;
+              }
+          }
+      } // end loop on quadrature points
 
 
 
@@ -340,78 +328,65 @@ DGTracer<dim>::assemble_system_matrix()
 
 
 
+    const FEFaceValuesBase<dim> &fe_face =
+      scratch_data.fe_interface_values_tracer.get_fe_face_values(0);
 
+    // Scheme and physical properties
+    const double diffusivity =
+      this->simulation_parameters.physical_properties.tracer_diffusivity;
+    const auto method = this->simulation_control->get_assembly_method();
 
+    // Loop and quadrature informations
+    const auto &       JxW_vec    = scratch_data.boundary_JxW;
+    const unsigned int n_q_points = scratch_data.boundary_n_q_points;
+    const unsigned int n_dofs     = scratch_data.boundary_n_dofs;
+    const double       h          = scratch_data.face_size;
 
+    const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 
+    // Copy data elements
+    auto &local_matrix = copy_data.local_matrix;
 
-      const FEFaceValuesBase<dim> &fe_face =
-        scratch_data.fe_interface_values_tracer.get_fe_face_values(0);
+    // assembling local matrix and right hand side
+    for (unsigned int q = 0; q < n_q_points; ++q)
+      {
+        // Gather into local variables the relevant fields
+        const Tensor<1, dim> tracer_gradient =
+          scratch_data.boundary_tracer_gradients[q];
+        const Tensor<1, dim> velocity = scratch_data.face_velocity_values[q];
 
-      // Scheme and physical properties
-      const double diffusivity =
-        this->simulation_parameters.physical_properties.tracer_diffusivity;
-      const auto method = this->simulation_control->get_assembly_method();
+        // Store JxW in local variable for faster access;
+        const double JxW = JxW_vec[q];
 
-      // Loop and quadrature informations
-      const auto &       JxW_vec    = scratch_data.boundary_JxW;
-      const unsigned int n_q_points = scratch_data.boundary_n_q_points;
-      const unsigned int n_dofs     = scratch_data.boundary_n_dofs;
-      const double       h          = scratch_data.face_size;
+        const double beta_dot_n = velocity * normals[q];
 
-      const std::vector<Tensor<1, dim>> &normals =
-        scratch_data.boundary_normals;
+        if (beta_dot_n > 0)
+          {
+            for (unsigned int i = 0; i < n_dofs; ++i)
+              {
+                const auto grad_phi_T_i = scratch_data.boundary_grad_phi[q][i];
 
-      // Copy data elements
-      auto &local_matrix = copy_data.local_matrix;
+                for (unsigned int j = 0; j < n_dofs; ++j)
+                  {
+                    const Tensor<1, dim> grad_phi_T_j =
+                      scratch_data.boundary_grad_phi[q][j];
+                    const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
 
-      // assembling local matrix and right hand side
-      for (unsigned int q = 0; q < n_q_points; ++q)
-        {
-          // Gather into local variables the relevant fields
-          const Tensor<1, dim> tracer_gradient =
-            scratch_data.boundary_tracer_gradients[q];
-          const Tensor<1, dim> velocity =
-            scratch_data.boundary_velocity_values[q];
-
-          // Store JxW in local variable for faster access;
-          const double JxW = JxW_vec[q];
-
-          const double beta_dot_n = velocity * normals[q];
-
-          if (beta_dot_n > 0)
-            {
-              for (unsigned int i = 0; i < n_dofs; ++i)
-                {
-                  const auto grad_phi_T_i =
-                    scratch_data.boundary_grad_phi[q][i];
-
-                  for (unsigned int j = 0; j < n_dofs; ++j)
-                    {
-                      const Tensor<1, dim> grad_phi_T_j =
-                        scratch_data.boundary_grad_phi[q][j];
-                      const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
-
-                      // Weak form : - D * laplacian T +  u * gradT - f=0
-                      local_matrix(i, j) += fe_face.shape_value(i, q) // \phi_i
-                                            *
-                                            fe_face.shape_value(j, q) // \phi_j
-                                            * beta_dot_n // \beta . n
-                                            * JxW;       // dx
-                     /* local_matrix(i, j) -=
-                        fe_face.shape_value(i, q) // \phi_i
-                        * diffusivity             // D
-                        * grad_phi_j_dot_n        //(\grad \phi_j . n)
-                        * JxW;                    // dx
-                        */
-                    }
-                }
-            }
-        } // end loop on quadrature points
-
-
-
-
+                    // Weak form : - D * laplacian T +  u * gradT - f=0
+                    local_matrix(i, j) += fe_face.shape_value(i, q)   // \phi_i
+                                          * fe_face.shape_value(j, q) // \phi_j
+                                          * beta_dot_n // \beta . n
+                                          * JxW;       // dx
+                                                       /* local_matrix(i, j) -=
+                                                          fe_face.shape_value(i, q) // \phi_i
+                                                          * diffusivity             // D
+                                                          * grad_phi_j_dot_n        //(\grad \phi_j . n)
+                                                          * JxW;                    // dx
+                                                          */
+                  }
+              }
+          }
+      } // end loop on quadrature points
 
 
 
@@ -665,74 +640,62 @@ DGTracer<dim>::assemble_system_rhs()
 
 
 
+    const FEFaceValuesBase<dim> &fe_face =
+      scratch_data.fe_interface_values_tracer.get_fe_face_values(0);
 
+    // Scheme and physical properties
+    const double diffusivity =
+      this->simulation_parameters.physical_properties.tracer_diffusivity;
+    const auto method = this->simulation_control->get_assembly_method();
+    FEInterfaceValues<dim> &fe_iv = scratch_data.fe_interface_values_tracer;
 
+    // Loop and quadrature informations
+    const auto &       JxW_vec    = scratch_data.boundary_JxW;
+    const unsigned int n_q_points = scratch_data.boundary_n_q_points;
+    const unsigned int n_dofs     = scratch_data.boundary_n_dofs;
+    const double       h          = scratch_data.face_size;
 
+    const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 
-      const FEFaceValuesBase<dim> &fe_face =
-        scratch_data.fe_interface_values_tracer.get_fe_face_values(0);
+    // Copy data elements
+    auto &local_rhs = copy_data.local_rhs;
 
-      // Scheme and physical properties
-      const double diffusivity =
-        this->simulation_parameters.physical_properties.tracer_diffusivity;
-      const auto method = this->simulation_control->get_assembly_method();
-      FEInterfaceValues<dim> &fe_iv = scratch_data.fe_interface_values_tracer;
+    // assembling local matrix and right hand side
+    for (unsigned int q = 0; q < n_q_points; ++q)
+      {
+        // Gather into local variables the relevant fields
+        const Tensor<1, dim> tracer_gradient =
+          scratch_data.boundary_tracer_gradients[q];
+        const Tensor<1, dim> velocity = scratch_data.face_velocity_values[q];
 
-      // Loop and quadrature informations
-      const auto &       JxW_vec    = scratch_data.boundary_JxW;
-      const unsigned int n_q_points = scratch_data.boundary_n_q_points;
-      const unsigned int n_dofs     = scratch_data.boundary_n_dofs;
-      const double       h          = scratch_data.face_size;
+        // Store JxW in local variable for faster access;
+        const double JxW        = JxW_vec[q];
+        const double beta_dot_n = velocity * normals[q];
+        if (beta_dot_n <= 0)
+          {
+            for (unsigned int i = 0; i < n_dofs; ++i)
+              {
+                const auto phi_T_i =
+                  fe_face.shape_value(i, q); // TODO ADD TO SCRATCH
+                const auto grad_phi_T_i = scratch_data.boundary_grad_phi[q][i];
 
-      const std::vector<Tensor<1, dim>> &normals =
-        scratch_data.boundary_normals;
+                for (unsigned int j = 0; j < n_dofs; ++j)
+                  {
+                    const Tensor<1, dim> grad_phi_T_j =
+                      scratch_data.boundary_grad_phi[q][j];
+                    const auto phi_T_j =
+                      fe_face.shape_value(i, q); // TODO ADD TO SCRATCH
+                    const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
+                    // rhs for : - D * laplacian T +  u * grad T - f=0
+                    local_rhs(i) +=
+                      phi_T_i * (phi_T_j * beta_dot_n) * JxW; // dx
+                    local_rhs(i) -=
+                      phi_T_i * diffusivity * grad_phi_j_dot_n * JxW; // dx
+                  }
+              }
+          }
 
-      // Copy data elements
-      auto &local_rhs = copy_data.local_rhs;
-
-      // assembling local matrix and right hand side
-      for (unsigned int q = 0; q < n_q_points; ++q)
-        {
-          // Gather into local variables the relevant fields
-          const Tensor<1, dim> tracer_gradient =
-            scratch_data.boundary_tracer_gradients[q];
-          const Tensor<1, dim> velocity =
-            scratch_data.boundary_velocity_values[q];
-
-          // Store JxW in local variable for faster access;
-          const double JxW        = JxW_vec[q];
-          const double beta_dot_n = velocity * normals[q];
-          if (beta_dot_n <= 0)
-            {
-              for (unsigned int i = 0; i < n_dofs; ++i)
-                {
-                  const auto phi_T_i =
-                    fe_face.shape_value(i, q); // TODO ADD TO SCRATCH
-                  const auto grad_phi_T_i =
-                    scratch_data.boundary_grad_phi[q][i];
-
-                  for (unsigned int j = 0; j < n_dofs; ++j)
-                    {
-                      const Tensor<1, dim> grad_phi_T_j =
-                        scratch_data.boundary_grad_phi[q][j];
-                      const auto phi_T_j =
-                        fe_face.shape_value(i, q); // TODO ADD TO SCRATCH
-                      const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
-                      // rhs for : - D * laplacian T +  u * grad T - f=0
-                      local_rhs(i) +=
-                        phi_T_i * (phi_T_j * beta_dot_n) * JxW; // dx
-                      local_rhs(i) -=
-                        phi_T_i * diffusivity * grad_phi_j_dot_n * JxW; // dx
-                    }
-                }
-            }
-
-        } // end loop on quadrature points
-
-
-
-
-
+      } // end loop on quadrature points
 
 
 

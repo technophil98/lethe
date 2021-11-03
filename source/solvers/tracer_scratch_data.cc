@@ -51,7 +51,7 @@ TracerScratchData<dim>::allocate()
 
 template <int dim>
 void
-DGTracerScratchData<dim>::allocate()
+DGTracerScratchData<dim>::allocate_cell()
 {
   // Cell allocations
   // Initialize size of arrays
@@ -65,7 +65,7 @@ DGTracerScratchData<dim>::allocate()
   this->cell_source = std::vector<double>(cell_n_q_points);
 
   // Initialize arrays related to velocity and pressure
-  this->cell_velocities.first_vector_component = 0;
+  this->velocities.first_vector_component = 0;
   // Velocity
   this->cell_velocity_values = std::vector<Tensor<1, dim>>(cell_n_q_points);
   // Tracer
@@ -95,11 +95,17 @@ DGTracerScratchData<dim>::allocate()
   this->cell_laplacian_phi =
     std::vector<std::vector<double>>(cell_n_q_points,
                                      std::vector<double>(cell_n_dofs));
+}
 
+template <int dim>
+void
+DGTracerScratchData<dim>::allocate_face(const unsigned int face_n_dofs,
+                                        const unsigned int face_n_q_points)
+{
   // Face allocations
   // Initialize size of arrays
-  this->face_n_q_points = fe_interface_values_tracer.get_quadrature().size();
-  this->face_n_dofs     = fe_interface_values_tracer.n_current_interface_dofs();
+  this->face_n_dofs     = face_n_dofs;
+  this->face_n_q_points = face_n_q_points;
 
   // Initialize arrays related to quadrature
   this->face_JxW = std::vector<double>(face_n_q_points);
@@ -108,7 +114,8 @@ DGTracerScratchData<dim>::allocate()
   this->face_source = std::vector<double>(face_n_q_points);
 
   // Initialize arrays related to velocity and pressure
-  this->face_velocities.first_vector_component = 0;
+  this->velocities.first_vector_component = 0;
+
   // Velocity
   this->face_velocity_values = std::vector<Tensor<1, dim>>(face_n_q_points);
   // Tracer
@@ -138,6 +145,58 @@ DGTracerScratchData<dim>::allocate()
   this->face_laplacian_phi =
     std::vector<std::vector<double>>(face_n_q_points,
                                      std::vector<double>(face_n_dofs));
+}
+
+template <int dim>
+void
+DGTracerScratchData<dim>::allocate_boundary(
+  const unsigned int boundary_n_dofs,
+  const unsigned int boundary_n_q_points)
+{
+  // Boundary allocations
+  // Initialize size of arrays
+  this->boundary_n_dofs     = boundary_n_dofs;
+  this->boundary_n_q_points = boundary_n_q_points;
+
+  // Initialize arrays related to quadrature
+  this->boundary_JxW = std::vector<double>(face_n_q_points);
+
+  // Forcing term array
+  this->boundary_source = std::vector<double>(boundary_n_q_points);
+
+  // Initialize arrays related to velocity and pressure
+  this->velocities.first_vector_component = 0;
+
+  // Velocity
+  this->face_velocity_values = std::vector<Tensor<1, dim>>(boundary_n_q_points);
+  // Tracer
+  this->boundary_tracer_values = std::vector<double>(boundary_n_q_points);
+  this->boundary_tracer_gradients =
+    std::vector<Tensor<1, dim>>(boundary_n_q_points);
+  this->boundary_tracer_laplacians = std::vector<double>(boundary_n_q_points);
+
+  // Velocity for BDF schemes
+  this->boundary_previous_tracer_values =
+    std::vector<std::vector<double>>(maximum_number_of_previous_solutions(),
+                                     std::vector<double>(boundary_n_q_points));
+
+  // Velocity for SDIRK schemes
+  this->boundary_stages_tracer_values =
+    std::vector<std::vector<double>>(max_number_of_intermediary_stages(),
+                                     std::vector<double>(boundary_n_q_points));
+
+  // Initialize arrays related to shape functions
+  // Velocity shape functions
+  this->boundary_phi =
+    std::vector<std::vector<double>>(boundary_n_q_points,
+                                     std::vector<double>(boundary_n_dofs));
+  this->boundary_grad_phi = std::vector<std::vector<Tensor<1, dim>>>(
+    face_n_q_points, std::vector<Tensor<1, dim>>(boundary_n_dofs));
+  this->boundary_hess_phi = std::vector<std::vector<Tensor<2, dim>>>(
+    face_n_q_points, std::vector<Tensor<2, dim>>(boundary_n_dofs));
+  this->boundary_laplacian_phi =
+    std::vector<std::vector<double>>(boundary_n_q_points,
+                                     std::vector<double>(boundary_n_dofs));
 }
 
 

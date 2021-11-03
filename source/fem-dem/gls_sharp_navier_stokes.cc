@@ -895,8 +895,10 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
   ib_dem.update_particles(particles,time);
   double rho        = this->simulation_parameters.particlesParameters->density;
   particle_residual = 0;
+
   if (this->simulation_parameters.particlesParameters->integrate_motion)
     {
+      if(this->simulation_control)
       ib_dem.particles_dem(dt);
       for (unsigned int p = 0; p < particles.size(); ++p)
         {
@@ -1901,6 +1903,32 @@ GLSSharpNavierStokesSolver<dim>::sharp_edge()
         }
     }
 
+
+
+
+  /*double sum=0;
+  for (const auto &cell : cell_iterator)
+    {
+      if (cell->is_locally_owned() || cell->is_ghost())
+        {
+          cell->get_dof_indices(local_dof_indices);
+          for (unsigned int i = 0; i < local_dof_indices.size(); ++i)
+            {
+              const unsigned int component_i =
+                this->fe->system_to_component_index(i).first;
+              if(component_i==dim){
+                  this->system_matrix.set(this->pressure_reference_dof,local_dof_indices[i],-1);
+                  sum+=-1*this->evaluation_point(local_dof_indices[i]);
+                }
+            }
+        }
+    }
+  this->system_rhs(this->pressure_reference_dof)=0-sum;
+*/
+
+
+
+
   this->system_rhs.compress(VectorOperation::insert);
   this->system_matrix.compress(VectorOperation::insert);
 
@@ -2339,7 +2367,49 @@ GLSSharpNavierStokesSolver<dim>::read_checkpoint()
   // Finish the time step of the particle.
 }
 
+template <int dim>
+void
+GLSSharpNavierStokesSolver<dim>::project_pressure()
+{
+  TimerOutput::Scope t(this->computing_timer, "project_pressure");
+  // Initalize fe value objects in order to do calculation with it later
+  QGauss<dim>        q_formula(this->number_quadrature_points);
+  FEValues<dim>      fe_values(*this->fe,
+                          q_formula, update_values|
+                          update_quadrature_points | update_JxW_values);
 
+  unsigned int n_q_points = q_formula.size();
+  const auto &cell_iterator = this->dof_handler.active_cell_iterators();
+  auto projection_vector=this->system_rhs;
+  projection_vector.clear();
+  projection_vector.reinit(this->locally_owned_dofs, this->mpi_communicator);
+
+  const unsigned int dofs_per_cell = this->fe->dofs_per_cell;
+  std::vector<double>                  phi_p(dofs_per_cell);
+  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+  for (const auto &cell : cell_iterator)
+    {
+      if (cell->is_locally_owned() || cell->is_ghost())
+        {
+          fe_values.reinit(cell);
+          cell->get_dof_indices(local_dof_indices);
+          for (unsigned int q = 0; q < n_q_points; ++q)
+            {
+              for (unsigned int k = 0; k < dofs_per_cell; ++k)
+                {
+                  phi_p[k]      = fe_values.shape_value(k, q);
+                }
+              for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                {
+                  projection_vector(local_dof_indices[i]) += phi_p[i] *fe_values.JxW(q);
+                }
+            }
+        }
+    }
+  projection_vector.compress(VectorOperation::add);
+  this->system_rhs.add(-(this->system_rhs*projection_vector),projection_vector);
+  this->system_rhs.compress(VectorOperation::add);
+}
 
 template <int dim>
 void
@@ -2413,8 +2483,11 @@ GLSSharpNavierStokesSolver<dim>::solve()
         {
           vertices_cell_mapping();
           generate_cut_cells_map();
-          ib_dem.update_particles_boundary_contact(this->particles,this->dof_handler);
-          ;
+          if (this->simulation_parameters.particlesParameters->integrate_motion==true)
+            {
+              ib_dem.update_particles_boundary_contact(this->particles,
+                                                       this->dof_handler);
+            }
           this->first_iteration();
         }
       else
@@ -2425,7 +2498,12 @@ GLSSharpNavierStokesSolver<dim>::solve()
             refine_mesh();
           vertices_cell_mapping();
           generate_cut_cells_map();
-          ib_dem.update_particles_boundary_contact(this->particles,this->dof_handler);
+
+          if (this->simulation_parameters.particlesParameters->integrate_motion==true)
+            {
+              ib_dem.update_particles_boundary_contact(this->particles,
+                                                       this->dof_handler);
+            }
           // add initialization
           this->iterate();
         }

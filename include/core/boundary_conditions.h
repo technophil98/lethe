@@ -33,6 +33,7 @@ namespace BoundaryConditions
     noslip,
     slip,
     function,
+    pressure,
     periodic,
     // for heat transfer
     temperature,      // Dirichlet
@@ -81,6 +82,23 @@ namespace BoundaryConditions
     Functions::ParsedFunction<dim> u;
     Functions::ParsedFunction<dim> v;
     Functions::ParsedFunction<dim> w;
+
+    // Point for the center of rotation
+    Point<dim> center_of_rotation;
+  };
+
+  /**
+   * @brief This class manages the functions associated with function-type boundary conditions
+   * of the Navier-Stokes equations
+   *
+   */
+
+  template <int dim>
+  class NSPressureBoundaryFunctions
+  {
+  public:
+    // Velocity components
+    Functions::ParsedFunction<dim> u;
 
     // Point for the center of rotation
     Point<dim> center_of_rotation;

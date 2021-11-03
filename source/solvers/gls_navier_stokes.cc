@@ -128,6 +128,7 @@ GLSNavierStokesSolver<dim>::setup_dofs_fd()
                                   dsp,
                                   nonzero_constraints,
                                   false);
+  //make_sparsity_pattern_for_pressure(dsp);
   SparsityTools::distribute_sparsity_pattern(
     dsp,
     this->dof_handler.locally_owned_dofs(),
@@ -173,6 +174,50 @@ GLSNavierStokesSolver<dim>::setup_dofs_fd()
                                       &this->dof_handler);
   this->multiphysics->set_solution(PhysicsID::fluid_dynamics,
                                    &this->present_solution);
+}
+
+template <int dim>
+void
+GLSNavierStokesSolver<dim>::make_sparsity_pattern_for_pressure(DynamicSparsityPattern & dsp)
+{
+  const auto  &cell_iterator     = this->dof_handler.active_cell_iterators();
+  const unsigned int  dofs_per_cell = this->fe->dofs_per_cell;
+  std::vector<double> phi_p(dofs_per_cell);
+  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+  for (const auto &cell : cell_iterator)
+    {
+      if (cell->is_locally_owned() || cell->is_ghost())
+        {
+          cell->get_dof_indices(local_dof_indices);
+          for (unsigned int i = 0; i < local_dof_indices.size(); ++i)
+            {
+              const unsigned int component_i =
+                this->fe->system_to_component_index(i).first;
+              if(component_i==dim){
+                  pressure_reference_dof=local_dof_indices[i];
+                  break;
+                }
+            }
+        }
+    }
+
+  pressure_reference_dof=Utilities::MPI::min(pressure_reference_dof, this->mpi_communicator) ;
+  dsp.add(pressure_reference_dof,pressure_reference_dof);
+  for (const auto &cell : cell_iterator)
+    {
+      if (cell->is_locally_owned() || cell->is_ghost())
+        {
+          cell->get_dof_indices(local_dof_indices);
+          for (unsigned int i = 0; i < local_dof_indices.size(); ++i)
+            {
+              const unsigned int component_i =
+                this->fe->system_to_component_index(i).first;
+              if(component_i==dim and local_dof_indices[i]!=pressure_reference_dof ){
+                  dsp.add(pressure_reference_dof,local_dof_indices[i]);
+                }
+            }
+        }
+    }
 }
 
 template <int dim>
@@ -268,6 +313,7 @@ GLSNavierStokesSolver<dim>::define_non_zero_constraints()
           }
       }
   }
+
   nonzero_constraints.close();
 }
 
@@ -324,6 +370,14 @@ GLSNavierStokesSolver<dim>::define_zero_constraints()
             this->fe->component_mask(velocities));
         }
     }
+
+  {
+
+
+  }
+
+
+
   this->zero_constraints.close();
 }
 

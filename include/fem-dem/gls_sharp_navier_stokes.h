@@ -69,6 +69,7 @@ public:
   {
     assemble_rhs();
     sharp_edge();
+    //project_pressure();
   }
 
 
@@ -338,6 +339,9 @@ private:
   cell_cut_by_p(std::vector<types::global_dof_index> &local_dof_indices,
                 std::map<types::global_dof_index, Point<dim>> &support_points,
                 unsigned int                                   p);
+
+  void
+  project_pressure();
   /**
    * @brief
    * Return a bool to define if a cell is contains inside an IB particle and the
@@ -513,6 +517,7 @@ private:
   const double                 GLS_u_scale = 1;
   std::vector<IBParticle<dim>> particles;
   double                       particle_residual;
+  unsigned int newton_iter=0;
 
   std::vector<TableHandler> table_p;
 

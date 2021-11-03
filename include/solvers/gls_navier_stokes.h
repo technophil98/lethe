@@ -114,6 +114,9 @@ protected:
   void
   setup_preconditioner();
 
+  void
+  make_sparsity_pattern_for_pressure(DynamicSparsityPattern & dsp);
+
   /**
    * @brief  defined the non zero constraints used to solved the problem.
    */
@@ -270,13 +273,14 @@ private:
    */
 protected:
   TrilinosWrappers::SparseMatrix system_matrix;
-
+  unsigned int pressure_reference_dof;
 private:
   SparsityPattern                                    sparsity_pattern;
   std::shared_ptr<TrilinosWrappers::PreconditionILU> ilu_preconditioner;
   std::shared_ptr<TrilinosWrappers::PreconditionAMG> amg_preconditioner;
   int current_preconditioner_fill_level;
   int initial_preconditioner_fill_level;
+
 };
 
 

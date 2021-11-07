@@ -520,6 +520,8 @@ DGTracer<dim>::assemble_system_rhs()
 
             // rhs for : - D * laplacian T +  u * grad T - f=0
             local_rhs(i) += (scratch_data.cell_source[q] * phi_T_i) * JxW;
+            local_rhs(i) -=  (diffusivity * grad_phi_T_i * tracer_gradient +
+                              phi_T_i * velocity * tracer_gradient) * JxW;
           }
 
       } // end loop on quadrature points

@@ -242,6 +242,50 @@ public:
     return nonzero_constraints;
   }
 
+  void
+  get_function_jump(const FEInterfaceValues<dim> &fe_iv,
+                    const Vector<double> &        solution,
+                    std::vector<double> &         jump)
+  {
+    const unsigned int                 n_q = fe_iv.n_quadrature_points;
+    std::array<std::vector<double>, 2> face_values;
+    jump.resize(n_q);
+    for (unsigned int i = 0; i < 2; ++i)
+      {
+        face_values[i].resize(n_q);
+        fe_iv.get_fe_face_values(i).get_function_values(solution,
+                                                        face_values[i]);
+      }
+    for (unsigned int q = 0; q < n_q; ++q)
+      jump[q] = face_values[0][q] - face_values[1][q];
+  }
+
+  void
+  get_function_gradient_jump(const FEInterfaceValues<dim> &fe_iv,
+                             const Vector<double> &        solution,
+                             std::vector<Tensor<1, dim>> & gradient_jump)
+  {
+    const unsigned int          n_q = fe_iv.n_quadrature_points;
+    std::vector<Tensor<1, dim>> face_gradients[2];
+    gradient_jump.resize(n_q);
+    for (unsigned int i = 0; i < 2; ++i)
+      {
+        face_gradients[i].resize(n_q);
+        fe_iv.get_fe_face_values(i).get_function_gradients(solution,
+                                                           face_gradients[i]);
+      }
+    for (unsigned int q = 0; q < n_q; ++q)
+      gradient_jump[q] = face_gradients[0][q] - face_gradients[1][q];
+  }
+  double
+  get_penalty_factor(const unsigned int fe_degree,
+                     const double       cell_extent_left,
+                     const double       cell_extent_right)
+  {
+    const unsigned int degree = std::max(1U, fe_degree);
+    return degree * (degree + 1.) * 0.5 *
+           (1. / cell_extent_left + 1. / cell_extent_right);
+  }
 
 private:
   /**

@@ -322,6 +322,7 @@ public:
                                         fe_navier_stokes,
                                         face_quadrature,
                                         interface_update_flags)
+    , fe_tracer_degree(fe_tracer.degree)
   {
     allocate_cell();
   }
@@ -358,6 +359,7 @@ public:
         sd.fe_interface_values_navier_stokes.get_fe(),
         sd.fe_interface_values_navier_stokes.get_quadrature(),
         sd.fe_interface_values_navier_stokes.get_update_flags())
+    , fe_tracer_degree(sd.fe_values_tracer.get_fe().degree)
   {
     allocate_cell();
   }
@@ -630,6 +632,9 @@ public:
     this->boundary_source = std::vector<double>(boundary_n_q_points);
     source_function->value_list(boundary_quadrature_points, boundary_source);
 
+    // Dirichlet boundary condition array
+    this->boundary_dirichlet = std::vector<double>(boundary_n_q_points);
+
     if (dim == 2)
       {
         this->face_size = std::sqrt(4. * cell->measure() / M_PI);
@@ -638,8 +643,6 @@ public:
       {
         this->face_size = pow(6. * cell->measure() / M_PI, 1. / 3);
       }
-
-
 
     // Initialize vectors tracer
     this->boundary_tracer_values = std::vector<double>(boundary_n_q_points);
@@ -711,6 +714,16 @@ public:
       }
   }
 
+  void
+  compute_dirichlet_values(const unsigned int i_bc,
+                           Function<dim> &    dirichlet_function)
+  {
+    // Dirichlet boundary condition array
+    this->boundary_dirichlet = std::vector<double>(this->boundary_n_q_points);
+    dirichlet_function.value_list(boundary_quadrature_points,
+                                  boundary_dirichlet);
+  }
+
   template <typename VectorType>
   void
   reinit_velocity(const typename DoFHandler<dim>::active_cell_iterator &cell,
@@ -751,7 +764,7 @@ public:
   std::vector<Tensor<1, dim>> face_velocity_values;
   std::vector<Tensor<1, dim>> boundary_velocity_values;
 
-
+  unsigned int fe_tracer_degree;
   unsigned int cell_n_dofs;
   unsigned int cell_n_q_points;
   double       cell_size;
@@ -790,6 +803,9 @@ public:
   std::vector<double> cell_source;
   std::vector<double> face_source;
   std::vector<double> boundary_source;
+
+  // Dirichlet condition
+  std::vector<double> boundary_dirichlet;
 
   // Shape functions
   std::vector<std::vector<double>>         cell_phi;

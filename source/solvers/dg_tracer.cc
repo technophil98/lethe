@@ -253,14 +253,9 @@ DGTracer<dim>::assemble_system_matrix()
 
         for (unsigned int i = 0; i < n_dofs; ++i)
           {
-            const auto   grad_phi_T_i   = scratch_data.face_grad_phi[q][i];
             const double velocity_dot_n = velocity * normals[q];
             for (unsigned int j = 0; j < n_dofs; ++j)
               {
-                const Tensor<1, dim> grad_phi_T_j =
-                  scratch_data.face_grad_phi[q][j];
-                const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
-
                 // Weak form : - D * laplacian T +  u * gradT - f=0
 
                 local_matrix(i, j) += -diffusivity * normals[q] *
@@ -369,14 +364,8 @@ DGTracer<dim>::assemble_system_matrix()
         const double velocity_dot_n = velocity * normals[q];
         for (unsigned int i = 0; i < n_dofs; ++i)
           {
-            const auto grad_phi_T_i = scratch_data.boundary_grad_phi[q][i];
-
             for (unsigned int j = 0; j < n_dofs; ++j)
               {
-                const Tensor<1, dim> grad_phi_T_j =
-                  scratch_data.boundary_grad_phi[q][j];
-                const double grad_phi_j_dot_n = grad_phi_T_j * normals[q];
-
                 // Weak form : - D * laplacian T +  u * gradT - f=0
                 // if (cell->face(face_no)->boundary_id() == 0) //TODO CHECK IF
                 // BOUNDARY
@@ -702,29 +691,30 @@ DGTracer<dim>::assemble_system_rhs()
     auto &local_rhs = copy_data.local_rhs;
 
     unsigned int actual_i_bc;
-    bool is_dirichlet_bc = false;
-      for (unsigned int i_bc = 0;
-           i_bc <
-           this->simulation_parameters.boundary_conditions_tracer.size;
-           ++i_bc)
+    bool         is_dirichlet_bc = false;
+    for (unsigned int i_bc = 0;
+         i_bc < this->simulation_parameters.boundary_conditions_tracer.size;
+         ++i_bc)
       {
-          if (cell->face(face_no)->boundary_id() == i_bc){
-              actual_i_bc = i_bc;
-              is_dirichlet_bc = true;
+        if (cell->face(face_no)->boundary_id() == i_bc)
+          {
+            actual_i_bc     = i_bc;
+            is_dirichlet_bc = true;
           }
-          }
+      }
 
-      // assembling local matrix and right hand side
-      const auto g = scratch_data.boundary_dirichlet;
-      for (unsigned int q = 0; q < n_q_points; ++q)
+    // assembling local matrix and right hand side
+    const auto g = scratch_data.boundary_dirichlet;
+    for (unsigned int q = 0; q < n_q_points; ++q)
       {
-          // Dirichlet condition : imposed temperature at i_bc
-          if (is_dirichlet_bc) {
-              scratch_data.compute_dirichlet_values(
-                      actual_i_bc,
-                      *this->simulation_parameters.boundary_conditions_tracer
-                              .tracer[actual_i_bc]);
-              const auto g = scratch_data.boundary_dirichlet;
+        // Dirichlet condition : imposed temperature at i_bc
+        if (is_dirichlet_bc)
+          {
+            scratch_data.compute_dirichlet_values(
+              actual_i_bc,
+              *this->simulation_parameters.boundary_conditions_tracer
+                 .tracer[actual_i_bc]);
+            const auto g = scratch_data.boundary_dirichlet;
           }
 
         // Gather into local variables the relevant fields
@@ -738,33 +728,29 @@ DGTracer<dim>::assemble_system_rhs()
 
         for (unsigned int i = 0; i < n_dofs; ++i)
           {
-                    if (cell->face(face_no)->boundary_id() == actual_i_bc && this->simulation_parameters.boundary_conditions_tracer
-                                                                                     .type[actual_i_bc] ==
-                                                                             BoundaryConditions::BoundaryType::tracer_dirichlet)
-                      {
-                        const auto phi_T_i =
-                          fe_face.shape_value(i, q); // TODO ADD TO SCRATCH
-                        const auto grad_phi_T_i =
-                          scratch_data.boundary_grad_phi[q][i];
-                        // rhs for : - D * laplacian T +  u * grad T - f=0
+            if (cell->face(face_no)->boundary_id() == actual_i_bc &&
+                this->simulation_parameters.boundary_conditions_tracer
+                    .type[actual_i_bc] ==
+                  BoundaryConditions::BoundaryType::tracer_dirichlet)
+              {
+                const auto phi_T_i =
+                  fe_face.shape_value(i, q); // TODO ADD TO SCRATCH
+                // rhs for : - D * laplacian T +  u * grad T - f=0
 
-
-                        local_rhs(i) += penalty * diffusivity *
-                                        fe_face.shape_value(i, q) // \phi_i
-                                        * g[q]                    // g
-                                        * JxW;                    // dx
-                        local_rhs(i) +=
-                          -diffusivity * normals[q] *
-                          fe_face.shape_grad(i, q) // n*\nabla \phi_i
-                          * g[q]                   // g
-                          * JxW;                   // dx
-                      }
-
-                    if (velocity_dot_n < 0)
-                      local_rhs(i) += -fe_face.shape_value(i, q) * g[q] *
-                                      velocity_dot_n * JxW;
-                  }
-          }   // end loop on quadrature points
+                local_rhs(i) += penalty * diffusivity *
+                                fe_face.shape_value(i, q) // \phi_i
+                                * g[q]                    // g
+                                * JxW;                    // dx
+                local_rhs(i) += -diffusivity * normals[q] *
+                                fe_face.shape_grad(i, q) // n*\nabla \phi_i
+                                * g[q]                   // g
+                                * JxW;                   // dx
+                if (velocity_dot_n < 0)
+                  local_rhs(i) +=
+                    -fe_face.shape_value(i, q) * g[q] * velocity_dot_n * JxW;
+              }
+          }
+      } // end loop on quadrature points
 
 
 

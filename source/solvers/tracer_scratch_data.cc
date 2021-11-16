@@ -122,29 +122,6 @@ DGTracerScratchData<dim>::allocate_face(const unsigned int face_n_dofs,
   this->face_tracer_values     = std::vector<double>(face_n_q_points);
   this->face_tracer_gradients  = std::vector<Tensor<1, dim>>(face_n_q_points);
   this->face_tracer_laplacians = std::vector<double>(face_n_q_points);
-
-  // Velocity for BDF schemes
-  this->face_previous_tracer_values =
-    std::vector<std::vector<double>>(maximum_number_of_previous_solutions(),
-                                     std::vector<double>(face_n_q_points));
-
-  // Velocity for SDIRK schemes
-  this->face_stages_tracer_values =
-    std::vector<std::vector<double>>(max_number_of_intermediary_stages(),
-                                     std::vector<double>(face_n_q_points));
-
-  // Initialize arrays related to shape functions
-  // Velocity shape functions
-  this->face_phi =
-    std::vector<std::vector<double>>(face_n_q_points,
-                                     std::vector<double>(face_n_dofs));
-  this->face_grad_phi = std::vector<std::vector<Tensor<1, dim>>>(
-    face_n_q_points, std::vector<Tensor<1, dim>>(face_n_dofs));
-  this->face_hess_phi = std::vector<std::vector<Tensor<2, dim>>>(
-    face_n_q_points, std::vector<Tensor<2, dim>>(face_n_dofs));
-  this->face_laplacian_phi =
-    std::vector<std::vector<double>>(face_n_q_points,
-                                     std::vector<double>(face_n_dofs));
 }
 
 template <int dim>
@@ -174,29 +151,6 @@ DGTracerScratchData<dim>::allocate_boundary(
   this->boundary_tracer_gradients =
     std::vector<Tensor<1, dim>>(boundary_n_q_points);
   this->boundary_tracer_laplacians = std::vector<double>(boundary_n_q_points);
-
-  // Velocity for BDF schemes
-  this->boundary_previous_tracer_values =
-    std::vector<std::vector<double>>(maximum_number_of_previous_solutions(),
-                                     std::vector<double>(boundary_n_q_points));
-
-  // Velocity for SDIRK schemes
-  this->boundary_stages_tracer_values =
-    std::vector<std::vector<double>>(max_number_of_intermediary_stages(),
-                                     std::vector<double>(boundary_n_q_points));
-
-  // Initialize arrays related to shape functions
-  // Velocity shape functions
-  this->boundary_phi =
-    std::vector<std::vector<double>>(boundary_n_q_points,
-                                     std::vector<double>(boundary_n_dofs));
-  this->boundary_grad_phi = std::vector<std::vector<Tensor<1, dim>>>(
-    face_n_q_points, std::vector<Tensor<1, dim>>(boundary_n_dofs));
-  this->boundary_hess_phi = std::vector<std::vector<Tensor<2, dim>>>(
-    face_n_q_points, std::vector<Tensor<2, dim>>(boundary_n_dofs));
-  this->boundary_laplacian_phi =
-    std::vector<std::vector<double>>(boundary_n_q_points,
-                                     std::vector<double>(boundary_n_dofs));
 }
 
 

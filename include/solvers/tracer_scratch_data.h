@@ -544,40 +544,6 @@ public:
       .get_function_gradients(current_solution, this->face_tracer_gradients);
     this->fe_interface_values_tracer.get_fe_face_values(0)
       .get_function_laplacians(current_solution, this->face_tracer_laplacians);
-
-    // Gather previous tracer values
-    for (unsigned int p = 0; p < previous_solutions.size(); ++p)
-      {
-        this->fe_interface_values_tracer.get_fe_face_values(0)
-          .get_function_values(previous_solutions[p],
-                               face_previous_tracer_values[p]);
-      }
-
-    // Gather tracer stages
-    for (unsigned int s = 0; s < solution_stages.size(); ++s)
-      {
-        this->fe_interface_values_tracer.get_fe_face_values(0)
-          .get_function_values(solution_stages[s],
-                               face_stages_tracer_values[s]);
-      }
-
-    for (unsigned int q = 0; q < face_n_q_points; ++q)
-      {
-        for (unsigned int k = 0; k < face_n_dofs; ++k)
-          {
-            /*
-                        // Shape function
-                        this->face_phi[q][k] =
-               this->fe_interface_values_tracer.get_fe_face_values(0).shape_value(k,
-               q); this->face_grad_phi[q][k] =
-                          this->fe_interface_values_tracer.get_fe_face_values(0).shape_grad(k,
-               q); this->face_hess_phi[q][k] =
-                          this->fe_interface_values_tracer.get_fe_face_values(0).shape_hessian(k,
-               q); this->face_laplacian_phi[q][k] =
-               trace(this->face_hess_phi[q][k]);
-                        */
-          }
-      }
   }
 
   /** @brief Reinitialize the content of the scratch
@@ -650,29 +616,6 @@ public:
       std::vector<Tensor<1, dim>>(boundary_n_q_points);
     this->boundary_tracer_laplacians = std::vector<double>(boundary_n_q_points);
 
-    // Initialize arrays related to shape functions
-    this->boundary_phi =
-      std::vector<std::vector<double>>(boundary_n_q_points,
-                                       std::vector<double>(boundary_n_dofs));
-    this->boundary_grad_phi = std::vector<std::vector<Tensor<1, dim>>>(
-      boundary_n_q_points, std::vector<Tensor<1, dim>>(boundary_n_dofs));
-    this->boundary_hess_phi = std::vector<std::vector<Tensor<2, dim>>>(
-      boundary_n_q_points, std::vector<Tensor<2, dim>>(boundary_n_dofs));
-    this->boundary_laplacian_phi =
-      std::vector<std::vector<double>>(boundary_n_q_points,
-                                       std::vector<double>(boundary_n_dofs));
-    // For BDF schemes
-    this->boundary_previous_tracer_values =
-      std::vector<std::vector<double>>(maximum_number_of_previous_solutions(),
-                                       std::vector<double>(
-                                         boundary_n_q_points));
-    // For SDIRK schemes
-    this->boundary_stages_tracer_values =
-      std::vector<std::vector<double>>(max_number_of_intermediary_stages(),
-                                       std::vector<double>(
-                                         boundary_n_q_points));
-
-    // Gather tracer (values, gradient and laplacian)
     this->fe_interface_values_tracer.get_fe_face_values(0).get_function_values(
       current_solution, this->boundary_tracer_values);
     this->fe_interface_values_tracer.get_fe_face_values(0)
@@ -681,37 +624,6 @@ public:
     this->fe_interface_values_tracer.get_fe_face_values(0)
       .get_function_laplacians(current_solution,
                                this->boundary_tracer_laplacians);
-
-    /*
-            // Gather previous tracer values
-            for (unsigned int p = 0; p < previous_solutions.size(); ++p)
-              {
-                this->fe_interface_values_tracer.get_fe_face_values(0).get_function_values(
-                  previous_solutions[p], boundary_previous_tracer_values[p]);
-              }
-
-            // Gather tracer stages
-            for (unsigned int s = 0; s < solution_stages.size(); ++s)
-              {
-                this->fe_interface_values_tracer.get_function_values(
-                  solution_stages[s], boundary_stages_tracer_values[s]);
-              }
-              */
-
-    for (unsigned int q = 0; q < boundary_n_q_points; ++q)
-      {
-        for (unsigned int k = 0; k < boundary_n_dofs; ++k)
-          {
-            // Shape function
-            this->boundary_phi[q][k] = fe_face_values_tracer.shape_value(k, q);
-            this->boundary_grad_phi[q][k] =
-              fe_face_values_tracer.shape_grad(k, q);
-            this->boundary_hess_phi[q][k] =
-              fe_face_values_tracer.shape_hessian(k, q);
-            this->boundary_laplacian_phi[q][k] =
-              trace(this->boundary_hess_phi[q][k]);
-          }
-      }
   }
 
   void
@@ -791,13 +703,9 @@ public:
   std::vector<double>              face_tracer_values;
   std::vector<Tensor<1, dim>>      face_tracer_gradients;
   std::vector<double>              face_tracer_laplacians;
-  std::vector<std::vector<double>> face_previous_tracer_values;
-  std::vector<std::vector<double>> face_stages_tracer_values;
   std::vector<double>              boundary_tracer_values;
   std::vector<Tensor<1, dim>>      boundary_tracer_gradients;
   std::vector<double>              boundary_tracer_laplacians;
-  std::vector<std::vector<double>> boundary_previous_tracer_values;
-  std::vector<std::vector<double>> boundary_stages_tracer_values;
 
   // Source term
   std::vector<double> cell_source;
@@ -812,14 +720,6 @@ public:
   std::vector<std::vector<Tensor<2, dim>>> cell_hess_phi;
   std::vector<std::vector<double>>         cell_laplacian_phi;
   std::vector<std::vector<Tensor<1, dim>>> cell_grad_phi;
-  std::vector<std::vector<double>>         face_phi;
-  std::vector<std::vector<Tensor<2, dim>>> face_hess_phi;
-  std::vector<std::vector<double>>         face_laplacian_phi;
-  std::vector<std::vector<Tensor<1, dim>>> face_grad_phi;
-  std::vector<std::vector<double>>         boundary_phi;
-  std::vector<std::vector<Tensor<2, dim>>> boundary_hess_phi;
-  std::vector<std::vector<double>>         boundary_laplacian_phi;
-  std::vector<std::vector<Tensor<1, dim>>> boundary_grad_phi;
 
   std::vector<Tensor<1, dim>> face_normals;
   std::vector<Tensor<1, dim>> boundary_normals;

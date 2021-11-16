@@ -424,17 +424,6 @@ public:
 
     source_function->value_list(cell_quadrature_points, cell_source);
 
-    if (dim == 2)
-      {
-        this->cell_size =
-          std::sqrt(4. * cell->measure() / M_PI) / fe_tracer.degree;
-      }
-    else if (dim == 3)
-      {
-        this->cell_size =
-          pow(6 * cell->measure() / M_PI, 1. / 3.) / fe_tracer.degree;
-      }
-
     // Gather tracer (values, gradient and laplacian)
     this->fe_values_tracer.get_function_values(current_solution,
                                                this->cell_tracer_values);
@@ -523,27 +512,29 @@ public:
 
     source_function->value_list(face_quadrature_points, face_source);
 
-    if (dim == 2)
-      {
-        this->face_size = std::sqrt(4. * cell->measure() /
-                                    M_PI); // TODO LOOK THE PROPER WAY TO DO IT
-      }
-    else if (dim == 3)
-      {
-        this->face_size = pow(6. * cell->measure() / M_PI,
-                              1. / 3); // TODO LOOK THE PROPER WAY TO DO IT
-      }
+    face_size          = cell->measure() / cell->face(f)->measure();
+    face_size_neighbor = ncell->measure() / ncell->face(nf)->measure();
 
-    this->face_JxW     = this->fe_interface_values_tracer.get_JxW_values();
     this->face_normals = this->fe_interface_values_tracer.get_normal_vectors();
 
-    // Gather tracer (values, gradient and laplacian)
-    this->fe_interface_values_tracer.get_fe_face_values(0).get_function_values(
-      current_solution, this->face_tracer_values);
-    this->fe_interface_values_tracer.get_fe_face_values(0)
-      .get_function_gradients(current_solution, this->face_tracer_gradients);
-    this->fe_interface_values_tracer.get_fe_face_values(0)
-      .get_function_laplacians(current_solution, this->face_tracer_laplacians);
+    for (unsigned int q = 0; q < face_n_q_points; ++q)
+      {
+        this->face_JxW[q] = this->fe_values_tracer.JxW(q);
+
+        for (unsigned int k = 0; k < face_n_dofs; ++k)
+          {
+            // Shape function
+            this->face_phi_inflow[q][k] =
+              this->fe_interface_values_tracer.shape_value(false, k, q);
+            this->face_phi_outflow[q][k] =
+              this->fe_interface_values_tracer.shape_value(true, k, q);
+
+            this->face_tracer_jump[q][k] =
+              this->fe_interface_values_tracer.jump(k, q);
+            this->face_tracer_average_gradients[q][k] =
+              this->fe_interface_values_tracer.average_gradient(k, q);
+          }
+      }
   }
 
   /** @brief Reinitialize the content of the scratch
@@ -679,10 +670,10 @@ public:
   unsigned int fe_tracer_degree;
   unsigned int cell_n_dofs;
   unsigned int cell_n_q_points;
-  double       cell_size;
   unsigned int face_n_dofs;
   unsigned int face_n_q_points;
   double       face_size;
+  double       face_size_neighbor;
   unsigned int boundary_n_dofs;
   unsigned int boundary_n_q_points;
 
@@ -700,12 +691,13 @@ public:
   std::vector<double>              cell_tracer_laplacians;
   std::vector<std::vector<double>> cell_previous_tracer_values;
   std::vector<std::vector<double>> cell_stages_tracer_values;
-  std::vector<double>              face_tracer_values;
-  std::vector<Tensor<1, dim>>      face_tracer_gradients;
-  std::vector<double>              face_tracer_laplacians;
-  std::vector<double>              boundary_tracer_values;
-  std::vector<Tensor<1, dim>>      boundary_tracer_gradients;
-  std::vector<double>              boundary_tracer_laplacians;
+
+  std::vector<std::vector<double>>         face_tracer_jump;
+  std::vector<std::vector<Tensor<1, dim>>> face_tracer_average_gradients;
+
+  std::vector<double>         boundary_tracer_values;
+  std::vector<Tensor<1, dim>> boundary_tracer_gradients;
+  std::vector<double>         boundary_tracer_laplacians;
 
   // Source term
   std::vector<double> cell_source;
@@ -720,6 +712,8 @@ public:
   std::vector<std::vector<Tensor<2, dim>>> cell_hess_phi;
   std::vector<std::vector<double>>         cell_laplacian_phi;
   std::vector<std::vector<Tensor<1, dim>>> cell_grad_phi;
+  std::vector<std::vector<double>>         face_phi_outflow;
+  std::vector<std::vector<double>>         face_phi_inflow;
 
   std::vector<Tensor<1, dim>> face_normals;
   std::vector<Tensor<1, dim>> boundary_normals;

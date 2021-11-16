@@ -262,11 +262,18 @@ public:
   /**
    * @brief Resets the cell_matrix, cell_rhs
    */
+  template <class Iterator>
   void
-  reset()
+  reset(const Iterator &cell, unsigned int dofs_per_cell)
   {
+    local_matrix.reinit(dofs_per_cell, dofs_per_cell);
+    local_rhs.reinit(dofs_per_cell);
+
     local_matrix = 0;
     local_rhs    = 0;
+
+    local_dof_indices.resize(dofs_per_cell);
+    cell->get_dof_indices(local_dof_indices);
   }
 
   FullMatrix<double>                   local_matrix;

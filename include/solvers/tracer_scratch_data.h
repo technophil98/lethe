@@ -583,6 +583,8 @@ public:
     this->boundary_JxW     = fe_face_values_tracer.get_JxW_values();
     this->boundary_normals = fe_face_values_tracer.get_normal_vectors();
 
+    boundary_size = cell->measure() / cell->face(face_no)->measure();
+
     auto &fe_tracer = this->fe_values_tracer.get_fe();
 
     // Forcing term array
@@ -592,14 +594,6 @@ public:
     // Dirichlet boundary condition array
     this->boundary_dirichlet = std::vector<double>(boundary_n_q_points);
 
-    if (dim == 2)
-      {
-        this->face_size = std::sqrt(4. * cell->measure() / M_PI);
-      }
-    else if (dim == 3)
-      {
-        this->face_size = pow(6. * cell->measure() / M_PI, 1. / 3);
-      }
 
     // Initialize vectors tracer
     this->boundary_tracer_values = std::vector<double>(boundary_n_q_points);
@@ -615,6 +609,20 @@ public:
     this->fe_interface_values_tracer.get_fe_face_values(0)
       .get_function_laplacians(current_solution,
                                this->boundary_tracer_laplacians);
+
+    for (unsigned int q = 0; q < boundary_n_q_points; ++q)
+      {
+        this->boundary_JxW[q] = this->fe_values_tracer.JxW(q);
+
+        for (unsigned int k = 0; k < boundary_n_dofs; ++k)
+          {
+            // Shape function
+            this->boundary_phi[q][k] = fe_face_values_tracer.shape_value(k, q);
+
+            this->boundary_grad_phi[q][k] =
+              fe_face_values_tracer.shape_grad(k, q);
+          }
+      }
   }
 
   void
@@ -676,6 +684,7 @@ public:
   double       face_size_neighbor;
   unsigned int boundary_n_dofs;
   unsigned int boundary_n_q_points;
+  double       boundary_size;
 
   // Quadrature
   std::vector<double>     cell_JxW;
@@ -714,6 +723,8 @@ public:
   std::vector<std::vector<Tensor<1, dim>>> cell_grad_phi;
   std::vector<std::vector<double>>         face_phi_outflow;
   std::vector<std::vector<double>>         face_phi_inflow;
+  std::vector<std::vector<double>>         boundary_phi;
+  std::vector<std::vector<Tensor<1, dim>>> boundary_grad_phi;
 
   std::vector<Tensor<1, dim>> face_normals;
   std::vector<Tensor<1, dim>> boundary_normals;

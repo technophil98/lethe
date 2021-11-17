@@ -161,6 +161,15 @@ DGTracerScratchData<dim>::allocate_boundary(
   this->boundary_tracer_gradients =
     std::vector<Tensor<1, dim>>(boundary_n_q_points);
   this->boundary_tracer_laplacians = std::vector<double>(boundary_n_q_points);
+
+
+
+  this->boundary_phi =
+    std::vector<std::vector<double>>(boundary_n_q_points,
+                                     std::vector<double>(boundary_n_dofs));
+
+  this->boundary_grad_phi = std::vector<std::vector<Tensor<1, dim>>>(
+    boundary_n_q_points, std::vector<Tensor<1, dim>>(boundary_n_dofs));
 }
 
 

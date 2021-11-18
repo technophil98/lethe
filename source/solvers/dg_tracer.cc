@@ -350,7 +350,14 @@ DGTracer<dim>::assemble_system_matrix()
     const double       penalty =
       get_penalty_factor(scratch_data.fe_tracer_degree, extent1, extent1);
 
-    copy_data.reset(cell, scratch_data.cell_n_dofs);
+      copy_data.reset(cell, scratch_data.cell_n_dofs);
+      copy_data.face_data.emplace_back(n_dofs);
+      DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
+      copy_data_face.local_matrix.reinit(n_dofs,n_dofs);
+      // Copy data elements
+      auto &local_matrix = copy_data_face.local_matrix;
+      copy_data_face.joint_dof_indices = scratch_data.fe_interface_values_tracer.get_interface_dof_indices();
+
 
     const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 
@@ -381,7 +388,6 @@ DGTracer<dim>::assemble_system_matrix()
                 // IF BOUNDARY
                 //{
                 // Copy data elements
-                auto &local_matrix = copy_data.local_matrix;
                 for (unsigned int i_bc = 0;
                      i_bc < this->simulation_parameters
                               .boundary_conditions_tracer.size;
@@ -440,7 +446,7 @@ DGTracer<dim>::assemble_system_matrix()
                                                 system_matrix);
     for (auto &cdf : copy_data.face_data)
       {
-        if (!cdf.cell_is_local)
+
           constraints_used.distribute_local_to_global(cdf.local_matrix,
                                                       cdf.joint_dof_indices,
                                                       system_matrix);
@@ -679,11 +685,15 @@ DGTracer<dim>::assemble_system_rhs()
       get_penalty_factor(scratch_data.fe_tracer_degree, extent1, extent1);
 
     copy_data.reset(cell, scratch_data.cell_n_dofs);
+      copy_data.face_data.emplace_back(n_dofs);
+      DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
+      copy_data_face.local_rhs.reinit(n_dofs);
+      // Copy data elements
+      auto &local_rhs = copy_data_face.local_rhs;
+      copy_data_face.joint_dof_indices = fe_iv.get_interface_dof_indices();
 
     const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 
-    // Copy data elements
-    auto &local_rhs = copy_data.local_rhs;
 
     unsigned int actual_i_bc;
     bool         is_dirichlet_bc = false;
@@ -766,7 +776,7 @@ DGTracer<dim>::assemble_system_rhs()
                                                 system_rhs);
     for (auto &cdf : copy_data.face_data)
       {
-        if (!cdf.cell_is_local)
+
           constraints_used.distribute_local_to_global(cdf.local_rhs,
                                                       cdf.joint_dof_indices,
                                                       system_rhs);

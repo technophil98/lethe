@@ -520,20 +520,6 @@ public:
     for (unsigned int q = 0; q < face_n_q_points; ++q)
       {
         this->face_JxW[q] = this->fe_values_tracer.JxW(q);
-
-        for (unsigned int k = 0; k < face_n_dofs; ++k)
-          {
-            // Shape function
-            this->face_phi_inflow[q][k] =
-              this->fe_interface_values_tracer.shape_value(false, k, q);
-            this->face_phi_outflow[q][k] =
-              this->fe_interface_values_tracer.shape_value(true, k, q);
-
-            this->face_tracer_jump[q][k] =
-              this->fe_interface_values_tracer.jump(k, q);
-            this->face_tracer_average_gradients[q][k] =
-              this->fe_interface_values_tracer.average_gradient(k, q);
-          }
       }
   }
 
@@ -613,15 +599,6 @@ public:
     for (unsigned int q = 0; q < boundary_n_q_points; ++q)
       {
         this->boundary_JxW[q] = this->fe_values_tracer.JxW(q);
-
-        for (unsigned int k = 0; k < boundary_n_dofs; ++k)
-          {
-            // Shape function
-            this->boundary_phi[q][k] = fe_face_values_tracer.shape_value(k, q);
-
-            this->boundary_grad_phi[q][k] =
-              fe_face_values_tracer.shape_grad(k, q);
-          }
       }
   }
 
@@ -701,9 +678,6 @@ public:
   std::vector<std::vector<double>> cell_previous_tracer_values;
   std::vector<std::vector<double>> cell_stages_tracer_values;
 
-  std::vector<std::vector<double>>         face_tracer_jump;
-  std::vector<std::vector<Tensor<1, dim>>> face_tracer_average_gradients;
-
   std::vector<double>         boundary_tracer_values;
   std::vector<Tensor<1, dim>> boundary_tracer_gradients;
   std::vector<double>         boundary_tracer_laplacians;
@@ -721,10 +695,6 @@ public:
   std::vector<std::vector<Tensor<2, dim>>> cell_hess_phi;
   std::vector<std::vector<double>>         cell_laplacian_phi;
   std::vector<std::vector<Tensor<1, dim>>> cell_grad_phi;
-  std::vector<std::vector<double>>         face_phi_outflow;
-  std::vector<std::vector<double>>         face_phi_inflow;
-  std::vector<std::vector<double>>         boundary_phi;
-  std::vector<std::vector<Tensor<1, dim>>> boundary_grad_phi;
 
   std::vector<Tensor<1, dim>> face_normals;
   std::vector<Tensor<1, dim>> boundary_normals;

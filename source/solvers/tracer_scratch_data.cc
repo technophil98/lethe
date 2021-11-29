@@ -118,20 +118,6 @@ DGTracerScratchData<dim>::allocate_face(const unsigned int face_n_dofs,
 
   // Velocity
   this->face_velocity_values = std::vector<Tensor<1, dim>>(face_n_q_points);
-
-  // Tracer
-  this->face_tracer_jump =
-    std::vector<std::vector<double>>(face_n_q_points,
-                                     std::vector<double>(face_n_dofs));
-  this->face_phi_inflow =
-    std::vector<std::vector<double>>(face_n_q_points,
-                                     std::vector<double>(face_n_dofs));
-  this->face_phi_outflow =
-    std::vector<std::vector<double>>(face_n_q_points,
-                                     std::vector<double>(face_n_dofs));
-  this->face_tracer_average_gradients =
-    std::vector<std::vector<Tensor<1, dim>>>(
-      face_n_q_points, std::vector<Tensor<1, dim>>(face_n_dofs));
 }
 
 template <int dim>
@@ -161,15 +147,6 @@ DGTracerScratchData<dim>::allocate_boundary(
   this->boundary_tracer_gradients =
     std::vector<Tensor<1, dim>>(boundary_n_q_points);
   this->boundary_tracer_laplacians = std::vector<double>(boundary_n_q_points);
-
-
-
-  this->boundary_phi =
-    std::vector<std::vector<double>>(boundary_n_q_points,
-                                     std::vector<double>(boundary_n_dofs));
-
-  this->boundary_grad_phi = std::vector<std::vector<Tensor<1, dim>>>(
-    boundary_n_q_points, std::vector<Tensor<1, dim>>(boundary_n_dofs));
 }
 
 

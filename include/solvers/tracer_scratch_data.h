@@ -517,20 +517,17 @@ public:
 
     this->face_normals = this->fe_interface_values_tracer.get_normal_vectors();
 
-      // Initialize vectors tracer
-      this->face_tracer_values = std::vector<double>(face_n_q_points);
-      this->face_tracer_gradients =
-              std::vector<Tensor<1, dim>>(face_n_q_points);
-      this->face_tracer_laplacians = std::vector<double>(face_n_q_points);
+    // Initialize vectors tracer
+    this->face_tracer_values     = std::vector<double>(face_n_q_points);
+    this->face_tracer_gradients  = std::vector<Tensor<1, dim>>(face_n_q_points);
+    this->face_tracer_laplacians = std::vector<double>(face_n_q_points);
 
-      this->fe_interface_values_tracer.get_fe_face_values(0).get_function_values(
-              current_solution, this->face_tracer_values);
-      this->fe_interface_values_tracer.get_fe_face_values(0)
-              .get_function_gradients(current_solution,
-                                      this->face_tracer_gradients);
-      this->fe_interface_values_tracer.get_fe_face_values(0)
-              .get_function_laplacians(current_solution,
-                                       this->face_tracer_laplacians);
+    this->fe_interface_values_tracer.get_fe_face_values(0).get_function_values(
+      current_solution, this->face_tracer_values);
+    this->fe_interface_values_tracer.get_fe_face_values(0)
+      .get_function_gradients(current_solution, this->face_tracer_gradients);
+    this->fe_interface_values_tracer.get_fe_face_values(0)
+      .get_function_laplacians(current_solution, this->face_tracer_laplacians);
 
     for (unsigned int q = 0; q < face_n_q_points; ++q)
       {
@@ -692,12 +689,12 @@ public:
   std::vector<double>              cell_tracer_laplacians;
   std::vector<std::vector<double>> cell_previous_tracer_values;
   std::vector<std::vector<double>> cell_stages_tracer_values;
-    std::vector<double>         face_tracer_values;
-    std::vector<Tensor<1, dim>> face_tracer_gradients;
-    std::vector<double>         face_tracer_laplacians;
-  std::vector<double>         boundary_tracer_values;
-  std::vector<Tensor<1, dim>> boundary_tracer_gradients;
-  std::vector<double>         boundary_tracer_laplacians;
+  std::vector<double>              face_tracer_values;
+  std::vector<Tensor<1, dim>>      face_tracer_gradients;
+  std::vector<double>              face_tracer_laplacians;
+  std::vector<double>              boundary_tracer_values;
+  std::vector<Tensor<1, dim>>      boundary_tracer_gradients;
+  std::vector<double>              boundary_tracer_laplacians;
 
   // Source term
   std::vector<double> cell_source;

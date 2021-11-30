@@ -677,7 +677,7 @@ DGTracer<dim>::assemble_system_rhs()
               penalty * diffusivity * fe_iv.jump(i, q) * tracer_jump[q] * JxW;
 
             local_rhs(i) += fe_iv.jump(i, q) // [\phi_i]
-                            * scratch_data.face_tracer_values[q]*
+                            * scratch_data.face_tracer_values[q] *
                             velocity_dot_n * JxW;
           }
       } // end loop on quadrature points
@@ -812,33 +812,32 @@ DGTracer<dim>::assemble_system_rhs()
                   local_rhs(i) -=
                     -fe_face.shape_value(i, q) * g[q] * velocity_dot_n * JxW;
 
-                //minus Ax
+                // minus Ax
+                local_rhs(i) += -diffusivity * normals[q] *
+                                fe_face.shape_grad(i, q) // n*\nabla \phi_i
+                                *
+                                scratch_data.boundary_tracer_values[q] // \phi_j
+                                * JxW;                                 // dx
+
+                local_rhs(i) += -diffusivity *
+                                fe_face.shape_value(i, q) // \phi_i
+                                * normals[q] *
+                                scratch_data.boundary_tracer_gradients[q]
+                                // n*\nabla \phi_j
+                                * JxW; // dx
+
                 local_rhs(i) +=
-                        -diffusivity * normals[q] *
-                        fe_face.shape_grad(i, q)    // n*\nabla \phi_i
-                        * scratch_data.boundary_tracer_values[q] // \phi_j
-                        * JxW;                      // dx
+                  diffusivity * penalty * fe_face.shape_value(i, q) // \phi_i
+                  * scratch_data.boundary_tracer_values[q] * JxW;   // dx
 
-                  local_rhs(i) +=
-                          -diffusivity * fe_face.shape_value(i, q) // \phi_i
-                          * normals[q] *
-                          scratch_data.boundary_tracer_gradients[q]
-                          // n*\nabla \phi_j
-                          * JxW; // dx
-
-                  local_rhs(i) +=
-                          diffusivity * penalty *
-                          fe_face.shape_value(i, q)          // \phi_i
-                          * scratch_data.boundary_tracer_values[q] * JxW; // dx
-
-                  if (velocity_dot_n > 0)
+                if (velocity_dot_n > 0)
                   {
-                      local_rhs(i) += fe_face.shape_value(i, q)   // \phi_i
-                                            * scratch_data.boundary_tracer_values[q]// \phi_j
-                                            * velocity_dot_n // \beta . n
-                                            * JxW;           // dx
+                    local_rhs(i) +=
+                      fe_face.shape_value(i, q)                // \phi_i
+                      * scratch_data.boundary_tracer_values[q] // \phi_j
+                      * velocity_dot_n                         // \beta . n
+                      * JxW;                                   // dx
                   }
-
               }
           }
       } // end loop on quadrature points

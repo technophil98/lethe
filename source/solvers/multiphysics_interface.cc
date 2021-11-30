@@ -1,5 +1,4 @@
 #include <solvers/dg_tracer.h>
-#include <solvers/free_surface.h>
 #include <solvers/gls_tracer.h>
 #include <solvers/heat_transfer.h>
 #include <solvers/multiphysics_interface.h>

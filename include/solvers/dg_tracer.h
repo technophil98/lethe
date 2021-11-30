@@ -98,6 +98,41 @@ public:
       }
   }
 
+  void
+  get_function_jump(const FEInterfaceValues<dim> &       fe_iv,
+                    const TrilinosWrappers::MPI::Vector &solution,
+                    std::vector<double> &                jump)
+  {
+    const unsigned int                 n_q = fe_iv.n_quadrature_points;
+    std::array<std::vector<double>, 2> face_values;
+    jump.resize(n_q);
+    for (unsigned int i = 0; i < 2; ++i)
+      {
+        face_values[i].resize(n_q);
+        fe_iv.get_fe_face_values(i).get_function_values(solution,
+                                                        face_values[i]);
+      }
+    for (unsigned int q = 0; q < n_q; ++q)
+      jump[q] = face_values[0][q] - face_values[1][q];
+  }
+  void
+  get_function_gradient_average(const FEInterfaceValues<dim> &       fe_iv,
+                                const TrilinosWrappers::MPI::Vector &solution,
+                                std::vector<Tensor<1, dim>> &gradient_average)
+  {
+    const unsigned int          n_q = fe_iv.n_quadrature_points;
+    std::vector<Tensor<1, dim>> face_gradients[2];
+    gradient_average.resize(n_q);
+    for (unsigned int i = 0; i < 2; ++i)
+      {
+        face_gradients[i].resize(n_q);
+        fe_iv.get_fe_face_values(i).get_function_gradients(solution,
+                                                           face_gradients[i]);
+      }
+    for (unsigned int q = 0; q < n_q; ++q)
+      gradient_average[q] = 0.5 * (face_gradients[0][q] + face_gradients[1][q]);
+  }
+
   /**
    * @brief Attach the solution vector to the DataOut provided. This function
    * enable the auxiliary physics to output their solution via the core solver.

@@ -331,13 +331,14 @@ DGTracer<dim>::assemble_system_matrix()
     const double       penalty =
       get_penalty_factor(scratch_data.fe_tracer_degree, extent1, extent1);
 
-    copy_data.face_data.emplace_back(n_dofs);
-    DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
-    copy_data_face.local_matrix.reinit(n_dofs, n_dofs);
+    //copy_data.face_data.emplace_back(n_dofs);
+    //DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
+    //copy_data_face.local_matrix.reinit(n_dofs, n_dofs);
     // Copy data elements
-    auto &local_matrix = copy_data_face.local_matrix;
-    copy_data_face.joint_dof_indices =
-      scratch_data.fe_interface_values_tracer.get_interface_dof_indices();
+   //auto &local_matrix = copy_data_face.local_matrix;
+    //copy_data_face.joint_dof_indices =
+   //   scratch_data.fe_interface_values_tracer.get_interface_dof_indices();
+   auto &local_matrix = copy_data.local_matrix;
 
 
     const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
@@ -737,12 +738,14 @@ auto &local_rhs = copy_data.local_rhs;
     const double       penalty =
       get_penalty_factor(scratch_data.fe_tracer_degree, extent1, extent1);
 
-    copy_data.face_data.emplace_back(n_dofs);
-    DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
-    copy_data_face.local_rhs.reinit(n_dofs);
-    // Copy data elements
-    auto &local_rhs                  = copy_data_face.local_rhs;
-    copy_data_face.joint_dof_indices = fe_iv.get_interface_dof_indices();
+
+      // Copy data elements
+      //copy_data.face_data.emplace_back(n_dofs);
+    //DGMethodsCopyDataFace &copy_data_face = copy_data.face_data.back();
+    //copy_data_face.local_rhs.reinit(n_dofs);
+      //auto &local_rhs                  = copy_data_face.local_rhs;
+      auto &local_rhs                  = copy_data.local_rhs;
+      //copy_data_face.joint_dof_indices = fe_iv.get_interface_dof_indices();
 
     const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 

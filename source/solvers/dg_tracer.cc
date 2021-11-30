@@ -542,10 +542,10 @@ DGTracer<dim>::assemble_system_rhs()
             const auto grad_phi_T_i = scratch_data.cell_grad_phi[q][i];
 
             // rhs for : - D * laplacian T +  u * grad T - f=0
-            local_rhs(i) += (phi_T_i * scratch_data.cell_source[q] * JxW);
+            local_rhs(i) -= (phi_T_i * scratch_data.cell_source[q] * JxW);
 
             // minus Ax
-            local_rhs(i) -= (diffusivity * grad_phi_T_i * tracer_gradient -
+            local_rhs(i) += (diffusivity * grad_phi_T_i * tracer_gradient -
                              velocity * phi_T_i * tracer_gradient) *
                             JxW;
           }
@@ -666,17 +666,17 @@ DGTracer<dim>::assemble_system_rhs()
             // rhs for : - D * laplacian T +  u * grad T - f=0
 
             // minus Ax
-            local_rhs(i) -= -diffusivity * normals[q] *
+            local_rhs(i) += -diffusivity * normals[q] *
                             fe_iv.average_gradient(i, q) * tracer_jump[q] * JxW;
-            local_rhs(i) -= -diffusivity * fe_iv.jump(i, q) // \phi_i
+            local_rhs(i) += -diffusivity * fe_iv.jump(i, q) // \phi_i
                             * tracer_gradient_average[q] *
                             normals[q] // n*\nabla \phi_j
                             * JxW;     // dx
 
-            local_rhs(i) -=
+            local_rhs(i) +=
               penalty * diffusivity * fe_iv.jump(i, q) * tracer_jump[q] * JxW;
 
-            local_rhs(i) -= fe_iv.jump(i, q) // [\phi_i]
+            local_rhs(i) += fe_iv.jump(i, q) // [\phi_i]
                             * scratch_data.face_tracer_values[q]*
                             velocity_dot_n * JxW;
           }
@@ -800,40 +800,40 @@ DGTracer<dim>::assemble_system_rhs()
               {
                 // rhs for : - D * laplacian T +  u * grad T - f=0
 
-                local_rhs(i) += penalty * diffusivity *
+                local_rhs(i) -= penalty * diffusivity *
                                 fe_face.shape_value(i, q) // \phi_i
                                 * g[q]                    // g
                                 * JxW;                    // dx
-                local_rhs(i) += -diffusivity * normals[q] *
+                local_rhs(i) -= -diffusivity * normals[q] *
                                 fe_face.shape_grad(i, q) // n*\nabla \phi_i
                                 * g[q]                   // g
                                 * JxW;                   // dx
                 if (velocity_dot_n < 0)
-                  local_rhs(i) +=
+                  local_rhs(i) -=
                     -fe_face.shape_value(i, q) * g[q] * velocity_dot_n * JxW;
 
                 //minus Ax
-                local_rhs(i) -=
+                local_rhs(i) +=
                         -diffusivity * normals[q] *
                         fe_face.shape_grad(i, q)    // n*\nabla \phi_i
                         * scratch_data.boundary_tracer_values[q] // \phi_j
                         * JxW;                      // dx
 
-                  local_rhs(i) -=
+                  local_rhs(i) +=
                           -diffusivity * fe_face.shape_value(i, q) // \phi_i
                           * normals[q] *
                           scratch_data.boundary_tracer_gradients[q]
                           // n*\nabla \phi_j
                           * JxW; // dx
 
-                  local_rhs(i) -=
+                  local_rhs(i) +=
                           diffusivity * penalty *
                           fe_face.shape_value(i, q)          // \phi_i
                           * scratch_data.boundary_tracer_values[q] * JxW; // dx
 
                   if (velocity_dot_n > 0)
                   {
-                      local_rhs(i) -= fe_face.shape_value(i, q)   // \phi_i
+                      local_rhs(i) += fe_face.shape_value(i, q)   // \phi_i
                                             * scratch_data.boundary_tracer_values[q]// \phi_j
                                             * velocity_dot_n // \beta . n
                                             * JxW;           // dx

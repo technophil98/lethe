@@ -343,6 +343,21 @@ DGTracer<dim>::assemble_system_matrix()
 
     const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 
+      unsigned int actual_id_bc;
+      bool         is_dirichlet_bc = false;
+      for (unsigned int i_bc = 0;
+           i_bc < this->simulation_parameters.boundary_conditions_tracer.size;
+           ++i_bc)
+      {
+          if (cell->face(face_no)->boundary_id() == this->simulation_parameters.boundary_conditions_tracer.id[i_bc])
+          {
+              actual_id_bc     = this->simulation_parameters.boundary_conditions_tracer.id[i_bc];
+             if (this->simulation_parameters
+                         .boundary_conditions_tracer.type[i_bc] ==
+                 BoundaryConditions::BoundaryType::tracer_dirichlet){
+              is_dirichlet_bc = true;}
+          }
+      }
 
     // assembling local matrix and right hand side
     for (unsigned int q = 0; q < n_q_points; ++q)
@@ -360,23 +375,9 @@ DGTracer<dim>::assemble_system_matrix()
           {
             for (unsigned int j = 0; j < n_dofs; ++j)
               {
-                // Weak form : - D * laplacian T +  u * gradT - f=0
-                // if (cell->face(face_no)->boundary_id() == 0) //TODO CHECK
-                // IF BOUNDARY
-                //{
-                // Copy data elements
-                for (unsigned int i_bc = 0;
-                     i_bc < this->simulation_parameters
-                              .boundary_conditions_tracer.size;
-                     ++i_bc)
-                  {
-                    if (cell->face(face_no)->boundary_id() == i_bc)
+                 if (cell->face(face_no)->boundary_id() == actual_id_bc && is_dirichlet_bc)
                       {
                         // Dirichlet condition : imposed temperature at i_bc
-                        if (this->simulation_parameters
-                              .boundary_conditions_tracer.type[i_bc] ==
-                            BoundaryConditions::BoundaryType::tracer_dirichlet)
-                          {
                             local_matrix(i, j) +=
                               -diffusivity * normals[q] *
                               fe_face.shape_grad(i, q)    // n*\nabla \phi_i
@@ -394,8 +395,6 @@ DGTracer<dim>::assemble_system_matrix()
                               diffusivity * penalty *
                               fe_face.shape_value(i, q)          // \phi_i
                               * fe_face.shape_value(j, q) * JxW; // dx
-                          }
-                      }
                   }
                 if (velocity_dot_n > 0)
                   {
@@ -749,35 +748,33 @@ auto &local_rhs = copy_data.local_rhs;
 
     const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 
+    unsigned int actual_id_bc;
+      bool         is_dirichlet_bc = false;
 
-    unsigned int actual_i_bc;
-    bool         is_dirichlet_bc = false;
-    for (unsigned int i_bc = 0;
-         i_bc < this->simulation_parameters.boundary_conditions_tracer.size;
-         ++i_bc)
+      for (unsigned int i_bc = 0;
+           i_bc < this->simulation_parameters.boundary_conditions_tracer.size;
+           ++i_bc)
       {
-        if (cell->face(face_no)->boundary_id() == i_bc)
+          if (cell->face(face_no)->boundary_id() == this->simulation_parameters.boundary_conditions_tracer.id[i_bc])
           {
-            actual_i_bc     = i_bc;
-            is_dirichlet_bc = true;
+              actual_id_bc     = this->simulation_parameters.boundary_conditions_tracer.id[i_bc];
+              if (this->simulation_parameters
+                          .boundary_conditions_tracer.type[i_bc] ==
+                  BoundaryConditions::BoundaryType::tracer_dirichlet){
+                  is_dirichlet_bc = true;
+                                        scratch_data.compute_dirichlet_values(
+                              *this->simulation_parameters.boundary_conditions_tracer
+                                      .tracer[i_bc]);
+                  }
           }
       }
+      std::vector<double> g = scratch_data.boundary_dirichlet;
+
 
     // assembling local matrix and right hand side
-    std::vector<double> g = scratch_data.boundary_dirichlet;
     for (unsigned int q = 0; q < n_q_points; ++q)
       {
-        // Dirichlet condition : imposed temperature at i_bc
-        if (is_dirichlet_bc)
-          {
-            scratch_data.compute_dirichlet_values(
-              actual_i_bc,
-              *this->simulation_parameters.boundary_conditions_tracer
-                 .tracer[actual_i_bc]);
-            g = scratch_data.boundary_dirichlet;
-          }
-
-        // Gather into local variables the relevant fields
+               // Gather into local variables the relevant fields
         const Tensor<1, dim> tracer_gradient =
           scratch_data.boundary_tracer_gradients[q];
         const Tensor<1, dim> velocity = scratch_data.face_velocity_values[q];
@@ -788,10 +785,11 @@ auto &local_rhs = copy_data.local_rhs;
 
         for (unsigned int i = 0; i < n_dofs; ++i)
           {
-            if (cell->face(face_no)->boundary_id() == actual_i_bc &&
-                this->simulation_parameters.boundary_conditions_tracer
-                    .type[actual_i_bc] ==
-                  BoundaryConditions::BoundaryType::tracer_dirichlet)
+              if (velocity_dot_n < 0)
+                  local_rhs(i) +=
+                          -fe_face.shape_value(i, q) * g[q] * velocity_dot_n * JxW;
+            if (cell->face(face_no)->boundary_id() == actual_id_bc &&
+                is_dirichlet_bc)
               {
                 // rhs for : - D * laplacian T +  u * grad T - f=0
 
@@ -803,9 +801,7 @@ auto &local_rhs = copy_data.local_rhs;
                                 fe_face.shape_grad(i, q) // n*\nabla \phi_i
                                 * g[q]                   // g
                                 * JxW;                   // dx
-                if (velocity_dot_n < 0)
-                  local_rhs(i) +=
-                    -fe_face.shape_value(i, q) * g[q] * velocity_dot_n * JxW;
+
 
                 // minus Ax
                 local_rhs(i) -= -diffusivity * normals[q] *

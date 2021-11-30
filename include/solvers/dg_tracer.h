@@ -328,7 +328,7 @@ public:
                      const double       cell_extent_right)
   {
     const unsigned int degree = std::max(1U, fe_degree);
-    return degree * (degree + 1.) * 0.5 *
+    return 50.* degree * (degree + 1.) * 0.5 *
            (1. / cell_extent_left + 1. / cell_extent_right);
   }
 

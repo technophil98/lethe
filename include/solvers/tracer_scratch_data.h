@@ -615,7 +615,7 @@ public:
   }
 
   void
-  compute_dirichlet_values(Function<dim> &    dirichlet_function)
+  compute_dirichlet_values(Function<dim> &dirichlet_function)
   {
     // Dirichlet boundary condition array
     this->boundary_dirichlet = std::vector<double>(this->boundary_n_q_points);

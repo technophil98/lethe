@@ -99,6 +99,23 @@ public:
   }
 
   void
+  get_function_value_upwind(const FEInterfaceValues<dim> &       fe_iv,
+                            const TrilinosWrappers::MPI::Vector &solution,
+                            const bool                           is_inflow,
+                            std::vector<double> &                upwind_value)
+  {
+    const unsigned int n_q = fe_iv.n_quadrature_points;
+    upwind_value.resize(n_q);
+    if (is_inflow)
+      {
+        fe_iv.get_fe_face_values(0).get_function_values(solution, upwind_value);
+      }
+    else
+      {
+        fe_iv.get_fe_face_values(1).get_function_values(solution, upwind_value);
+      }
+  }
+  void
   get_function_jump(const FEInterfaceValues<dim> &       fe_iv,
                     const TrilinosWrappers::MPI::Vector &solution,
                     std::vector<double> &                jump)
@@ -328,7 +345,7 @@ public:
                      const double       cell_extent_right)
   {
     const unsigned int degree = std::max(1U, fe_degree);
-    return 50.* degree * (degree + 1.) * 0.5 *
+    return 1. * degree * (degree + 1.) * 0.5 *
            (1. / cell_extent_left + 1. / cell_extent_right);
   }
 

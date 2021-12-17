@@ -129,12 +129,12 @@ DGTracer<dim>::assemble_system_matrix()
           {
             const Tensor<1, dim> grad_phi_T_i =
               scratch_data.cell_grad_phi[q][i];
+            const auto phi_T_i = scratch_data.cell_phi[q][i];
 
             for (unsigned int j = 0; j < n_dofs; ++j)
               {
                 const Tensor<1, dim> grad_phi_T_j =
                   scratch_data.cell_grad_phi[q][j];
-                const auto phi_T_j = scratch_data.cell_phi[q][j];
 
                 // Weak form : - D * laplacian T +  u * gradT - f=0
                 local_matrix(i, j) += diffusivity *
@@ -142,7 +142,7 @@ DGTracer<dim>::assemble_system_matrix()
                                       * grad_phi_T_j // \nabla \phi_j
                                       * JxW;         // dx
 
-                local_matrix(i, j) += -velocity * grad_phi_T_i * phi_T_j * JxW;
+                local_matrix(i, j) += velocity * grad_phi_T_j * phi_T_i * JxW;
               }
           }
       } // end loop on quadrature points
@@ -239,6 +239,7 @@ DGTracer<dim>::assemble_system_matrix()
         // Gather into local variables the relevant fields
         const Tensor<1, dim> velocity = scratch_data.face_velocity_values[q];
         const double         velocity_dot_n = velocity * normals[q];
+        double               gamma          = sgn(velocity_dot_n) * 0.5;
         // Store JxW in local variable for faster access;
         const double JxW = JxW_vec[q];
 
@@ -247,7 +248,7 @@ DGTracer<dim>::assemble_system_matrix()
             for (unsigned int j = 0; j < n_dofs; ++j)
               {
                 // Weak form : - D * laplacian T +  u * gradT - f=0
-
+                // Diffusion
                 local_matrix(i, j) += -diffusivity * normals[q] *
                                       fe_iv.average_gradient(i, q) *
                                       fe_iv.jump(j, q) * JxW;
@@ -260,10 +261,13 @@ DGTracer<dim>::assemble_system_matrix()
                 local_matrix(i, j) += penalty * diffusivity * fe_iv.jump(i, q) *
                                       fe_iv.jump(j, q) * JxW;
 
-                local_matrix(i, j) +=
-                  fe_iv.jump(i, q) // [\phi_i]
-                  * fe_iv.shape_value((velocity_dot_n > 0), j, q) *
-                  velocity_dot_n * JxW;
+                // Advection
+                local_matrix(i, j) += -velocity_dot_n *
+                                      fe_iv.jump(j, q) // [\phi_i]
+                                      * fe_iv.average(i, q) * JxW;
+                local_matrix(i, j) += -gamma * velocity_dot_n *
+                                      fe_iv.jump(i, q) // [\phi_i]
+                                      * fe_iv.jump(j, q) * JxW;
               }
           }
       } // end loop on quadrature points
@@ -344,8 +348,10 @@ DGTracer<dim>::assemble_system_matrix()
 
     const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 
-    unsigned int actual_id_bc;
-    bool         is_dirichlet_bc = false;
+    unsigned int        actual_id_bc;
+    bool                is_dirichlet_bc = false;
+    std::vector<double> g               = scratch_data.boundary_dirichlet;
+    std::fill(g.begin(), g.end(), 0.);
     for (unsigned int i_bc = 0;
          i_bc < this->simulation_parameters.boundary_conditions_tracer.size;
          ++i_bc)
@@ -360,9 +366,13 @@ DGTracer<dim>::assemble_system_matrix()
                 BoundaryConditions::BoundaryType::tracer_dirichlet)
               {
                 is_dirichlet_bc = true;
+                scratch_data.compute_dirichlet_values(
+                  *this->simulation_parameters.boundary_conditions_tracer
+                     .tracer[i_bc]);
               }
           }
       }
+    g = scratch_data.boundary_dirichlet;
 
     // assembling local matrix and right hand side
     for (unsigned int q = 0; q < n_q_points; ++q)
@@ -380,34 +390,35 @@ DGTracer<dim>::assemble_system_matrix()
           {
             for (unsigned int j = 0; j < n_dofs; ++j)
               {
+                local_matrix(i, j) += -diffusivity *
+                                      fe_face.shape_value(i, q) // \phi_i
+                                      * normals[q] *
+                                      fe_face.shape_grad(j, q)
+                                      // n*\nabla \phi_j
+                                      * JxW; // dx
+
                 if (cell->face(face_no)->boundary_id() == actual_id_bc &&
-                    is_dirichlet_bc)
+                    is_dirichlet_bc && velocity_dot_n < 0)
                   {
-                    // Dirichlet condition : imposed temperature at i_bc
-                    local_matrix(i, j) +=
-                      -diffusivity * normals[q] *
-                      fe_face.shape_grad(i, q)    // n*\nabla \phi_i
-                      * fe_face.shape_value(j, q) // \phi_j
-                      * JxW;                      // dx
+                    if (velocity_dot_n < 0)
+                      {
+                        // Dirichlet condition : imposed temperature at i_bc
+                        local_matrix(i, j) +=
+                          -diffusivity * normals[q] *
+                          fe_face.shape_grad(i, q) // n*\nabla \phi_i
+                          * (fe_face.shape_value(j, q) /*- g[q]*/) // \phi_j
+                          * JxW;                                   // dx
 
-                    local_matrix(i, j) += -diffusivity *
-                                          fe_face.shape_value(i, q) // \phi_i
-                                          * normals[q] *
-                                          fe_face.shape_grad(j, q)
-                                          // n*\nabla \phi_j
-                                          * JxW; // dx
-
-                    local_matrix(i, j) += diffusivity * penalty *
-                                          fe_face.shape_value(i, q) // \phi_i
-                                          * fe_face.shape_value(j, q) *
-                                          JxW; // dx
-                  }
-                if (velocity_dot_n > 0)
-                  {
-                    local_matrix(i, j) += fe_face.shape_value(i, q)   // \phi_i
-                                          * fe_face.shape_value(j, q) // \phi_j
-                                          * velocity_dot_n // \beta . n
-                                          * JxW;           // dx
+                        local_matrix(i, j) +=
+                          diffusivity * penalty *
+                          (fe_face.shape_value(j, q) /*- g[q]*/) // \phi_i
+                          * fe_face.shape_value(i, q) * JxW;     // dx
+                      }
+                    else
+                      {
+                        // TODO. Throw warning about Dirichlet condition trying
+                        // to be applied on outlet
+                      }
                   }
               }
           }
@@ -544,13 +555,11 @@ DGTracer<dim>::assemble_system_rhs()
               scratch_data.cell_grad_phi[q][i];
 
             // rhs for : - D * laplacian T +  u * grad T - f=0
-            local_rhs(i) += (phi_T_i * scratch_data.cell_source[q] * JxW);
-
             // minus Ax
-            local_rhs(i) -=
-              (diffusivity * grad_phi_T_i * tracer_gradient -
-               velocity * grad_phi_T_i * scratch_data.cell_tracer_values[q]) *
-              JxW;
+            local_rhs(i) -= (diffusivity * grad_phi_T_i * tracer_gradient +
+                             velocity * tracer_gradient * phi_T_i -
+                             phi_T_i * scratch_data.cell_source[q]) *
+                            JxW;
           }
       } // end loop on quadrature points
 
@@ -652,11 +661,7 @@ DGTracer<dim>::assemble_system_rhs()
           scratch_data.cell_tracer_gradients[q];
         const Tensor<1, dim> velocity = scratch_data.cell_velocity_values[q];
         const double         velocity_dot_n = velocity * normals[q];
-        std::vector<double>  tracer_upwind_value;
-        get_function_value_upwind(fe_iv,
-                                  this->evaluation_point,
-                                  (velocity_dot_n > 0),
-                                  tracer_upwind_value);
+        double               gamma          = sgn(velocity_dot_n) * 0.5;
 
         // Store JxW in local variable for faster access;
         const double JxW = JxW_vec[q];
@@ -667,11 +672,12 @@ DGTracer<dim>::assemble_system_rhs()
             const auto phi_T_i      = scratch_data.cell_phi[q][i];
             const auto grad_phi_T_i = scratch_data.cell_grad_phi[q][i];
 
-            // rhs for : - D * laplacian T +  u * grad T - f=0
-
-            // minus Ax
+             // minus Ax
+            // Weak form : - D * laplacian T +  u * gradT - f=0
+            // Diffusion
             local_rhs(i) -= -diffusivity * normals[q] *
                             fe_iv.average_gradient(i, q) * tracer_jump[q] * JxW;
+
             local_rhs(i) -= -diffusivity * fe_iv.jump(i, q) // \phi_i
                             * tracer_gradient_average[q] *
                             normals[q] // n*\nabla \phi_j
@@ -680,9 +686,12 @@ DGTracer<dim>::assemble_system_rhs()
             local_rhs(i) -=
               penalty * diffusivity * fe_iv.jump(i, q) * tracer_jump[q] * JxW;
 
-            local_rhs(i) -= fe_iv.jump(i, q) // [\phi_i]
-                            * tracer_upwind_value[q] * velocity_dot_n * JxW;
-            // TODO INCERTAIN DE COMMENT TRADUIRE LE UPWIND TRACER VALUES
+            // Advection
+            local_rhs(i) -= -velocity_dot_n * tracer_jump[q] // [\phi_i]
+                            * fe_iv.average(i, q) * JxW;
+            local_rhs(i) -= -gamma * velocity_dot_n *
+                            fe_iv.jump(i, q) // [\phi_i]
+                            * tracer_jump[q] * JxW;
           }
       } // end loop on quadrature points
 
@@ -760,10 +769,9 @@ DGTracer<dim>::assemble_system_rhs()
 
     const std::vector<Tensor<1, dim>> &normals = scratch_data.boundary_normals;
 
-    unsigned int actual_id_bc;
-    bool         is_dirichlet_bc = false;
-
-    std::vector<double> g = scratch_data.boundary_dirichlet;
+    unsigned int        actual_id_bc;
+    bool                is_dirichlet_bc = false;
+    std::vector<double> g               = scratch_data.boundary_dirichlet;
     std::fill(g.begin(), g.end(), 0.);
     for (unsigned int i_bc = 0;
          i_bc < this->simulation_parameters.boundary_conditions_tracer.size;
@@ -793,6 +801,7 @@ DGTracer<dim>::assemble_system_rhs()
         // Gather into local variables the relevant fields
         const Tensor<1, dim> tracer_gradient =
           scratch_data.boundary_tracer_gradients[q];
+        const double tracer_value     = scratch_data.boundary_tracer_values[q];
         const Tensor<1, dim> velocity = scratch_data.face_velocity_values[q];
 
         // Store JxW in local variable for faster access;
@@ -801,48 +810,32 @@ DGTracer<dim>::assemble_system_rhs()
 
         for (unsigned int i = 0; i < n_dofs; ++i)
           {
+            local_rhs(i) -= -diffusivity * fe_face.shape_value(i, q) // \phi_i
+                            * normals[q] *
+                            tracer_gradient
+                            // n*\nabla \phi_j
+                            * JxW; // dx
+
             if (cell->face(face_no)->boundary_id() == actual_id_bc &&
-                is_dirichlet_bc)
+                is_dirichlet_bc && velocity_dot_n < 0)
               {
-                // rhs for : - D * laplacian T +  u * grad T - f=0
-
-                local_rhs(i) += penalty * diffusivity *
-                                fe_face.shape_value(i, q) // \phi_i
-                                * g[q]                    // g
-                                * JxW;                    // dx
-                local_rhs(i) += -diffusivity * normals[q] *
-                                fe_face.shape_grad(i, q) // n*\nabla \phi_i
-                                * g[q]                   // g
-                                * JxW;                   // dx
                 if (velocity_dot_n < 0)
-                  local_rhs(i) +=
-                    -fe_face.shape_value(i, q) * g[q] * velocity_dot_n * JxW;
+                  {
+                    // Dirichlet condition : imposed temperature at i_bc
+                    local_rhs(i) -= -diffusivity * normals[q] *
+                                    fe_face.shape_grad(i, q) // n*\nabla \phi_i
+                                    * (tracer_value - g[q])  // \phi_j
+                                    * JxW;                   // dx
 
-                // minus Ax
-                local_rhs(i) -= -diffusivity * normals[q] *
-                                fe_face.shape_grad(i, q) // n*\nabla \phi_i
-                                *
-                                scratch_data.boundary_tracer_values[q] // \phi_j
-                                * JxW;                                 // dx
-
-                local_rhs(i) -= -diffusivity *
-                                fe_face.shape_value(i, q) // \phi_i
-                                * normals[q] *
-                                scratch_data.boundary_tracer_gradients[q]
-                                // n*\nabla \phi_j
-                                * JxW; // dx
-
-                local_rhs(i) -=
-                  diffusivity * penalty * fe_face.shape_value(i, q) // \phi_i
-                  * scratch_data.boundary_tracer_values[q] * JxW;   // dx
-              }
-            if (velocity_dot_n > 0)
-              {
-                local_rhs(i) -= fe_face.shape_value(i, q) // \phi_i
-                                *
-                                scratch_data.boundary_tracer_values[q] // \phi_j
-                                * velocity_dot_n // \beta . n
-                                * JxW;           // dx
+                    local_rhs(i) -= diffusivity * penalty *
+                                    (tracer_value - g[q])              // \phi_i
+                                    * fe_face.shape_value(i, q) * JxW; // dx
+                  }
+                else
+                  {
+                    // TODO. Throw warning about Dirichlet condition trying to
+                    // be applied on outlet
+                  }
               }
           }
       } // end loop on quadrature points
@@ -1262,12 +1255,12 @@ DGTracer<dim>::setup_dofs()
         if (this->simulation_parameters.boundary_conditions_tracer.type[i_bc] ==
             BoundaryConditions::BoundaryType::tracer_dirichlet)
           {
-            VectorTools::interpolate_boundary_values(
+            /*VectorTools::interpolate_boundary_values(
               this->dof_handler,
               this->simulation_parameters.boundary_conditions_tracer.id[i_bc],
               *this->simulation_parameters.boundary_conditions_tracer
                  .tracer[i_bc],
-              nonzero_constraints);
+              nonzero_constraints);*/
           }
       }
   }

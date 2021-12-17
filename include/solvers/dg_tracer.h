@@ -150,6 +150,13 @@ public:
       gradient_average[q] = 0.5 * (face_gradients[0][q] + face_gradients[1][q]);
   }
 
+  template <typename T>
+  int
+  sgn(T val)
+  {
+    return (T(0) < val) - (val < T(0));
+  }
+
   /**
    * @brief Attach the solution vector to the DataOut provided. This function
    * enable the auxiliary physics to output their solution via the core solver.
@@ -345,7 +352,7 @@ public:
                      const double       cell_extent_right)
   {
     const unsigned int degree = std::max(1U, fe_degree);
-    return 1. * degree * (degree + 1.) * 0.5 *
+    return 100. * degree * (degree + 1.) * 0.5 *
            (1. / cell_extent_left + 1. / cell_extent_right);
   }
 

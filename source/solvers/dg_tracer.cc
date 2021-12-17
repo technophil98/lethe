@@ -672,7 +672,7 @@ DGTracer<dim>::assemble_system_rhs()
             const auto phi_T_i      = scratch_data.cell_phi[q][i];
             const auto grad_phi_T_i = scratch_data.cell_grad_phi[q][i];
 
-             // minus Ax
+            // minus Ax
             // Weak form : - D * laplacian T +  u * gradT - f=0
             // Diffusion
             local_rhs(i) -= -diffusivity * normals[q] *

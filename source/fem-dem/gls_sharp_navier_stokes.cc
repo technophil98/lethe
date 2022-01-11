@@ -1121,7 +1121,7 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
           double volume = 0;
           if (dim == 2)
             {
-              volume = particles[p].radius * particles[p].radius * PI * rho;
+              volume = particles[p].radius * particles[p].radius * PI * density ;
             }
           if (dim == 3)
             {
@@ -1165,7 +1165,7 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
               for (unsigned int d = 0; d < dim; ++d)
                 {
                   jac_velocity[d][d] =
-                    -bdf_coefs[0] - 0.5 * volume * rho / particles[p].mass / dt;
+                    -bdf_coefs[0] - 0.5 * volume * density / particles[p].mass / dt;
                 }
             }
           else
@@ -1181,7 +1181,7 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
                                          particles[p].velocity_iter[d]) /
                                         particles[p].mass / dt;
                   else
-                    jac_velocity[d][d] = -bdf_coefs[0] - 0.5 * volume * rho /
+                    jac_velocity[d][d] = -bdf_coefs[0] - 0.5 * volume * density /
                                                            particles[p].mass /
                                                            dt;
                 }
@@ -1282,7 +1282,7 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
                 {
                   jac_omega[d][d] =
                     -bdf_coefs[0] -
-                    0.5 * 2. / 5 * volume * rho * particles[p].radius *
+                    0.5 * 2. / 5 * volume * density * particles[p].radius *
                       particles[p].radius * inv_inertia[d][d] / dt;
                 }
             }
@@ -1300,7 +1300,7 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
                   else
                     jac_omega[d][d] =
                       -bdf_coefs[0] -
-                      0.5 * 2. / 5 * volume * rho * particles[p].radius *
+                      0.5 * 2. / 5 * volume * density  * particles[p].radius *
                         particles[p].radius * inv_inertia[d][d] / dt;
                 }
             }
@@ -1362,7 +1362,7 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
           Parameters::Verbosity::quiet)
         {
           this->pcout << "L_inf particle residual : "
-                      << particle_residual<<"particle id : "<<  worst_residual_particle_id<<std::endl;
+                      << particle_residual<<" particle id : "<<  worst_residual_particle_id<<std::endl;
           this->pcout << "L2 particle residual L2 "
                       << particles_residual_vect.l2_norm()<<std::endl;
         }

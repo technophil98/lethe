@@ -697,7 +697,7 @@ GLSSharpNavierStokesSolver<dim>::force_on_ib()
 
   total_area = Utilities::MPI::sum(total_area, this->mpi_communicator);
   this->pcout << std::setprecision(17);
-  this->pcout << "total area " << total_area << std::endl;
+  //this->pcout << "total area " << total_area << std::endl;
 }
 
 template <int dim>
@@ -1252,6 +1252,7 @@ GLSSharpNavierStokesSolver<dim>::integrate_particles()
                 }
               const auto &cell = LetheGridTools::find_cell_around_point_with_tree(
                 this->dof_handler, particles[p].position);
+              (void)cell;
             }
 
           catch(...){

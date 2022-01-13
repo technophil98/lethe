@@ -116,6 +116,10 @@ namespace Parameters
                       "100",
                       Patterns::Integer(),
                       "dem-cfd coupling frequency");
+    prm.declare_entry("vans model",
+                      "modelA",
+                      Patterns::Selection("modelA|modelB"),
+                      "The volume averaged Navier Stokes model to be solved.");
     prm.leave_subsection();
   }
 
@@ -144,6 +148,14 @@ namespace Parameters
       drag_model = Parameters::DragModel::dallavalle;
     else
       throw(std::runtime_error("Invalid drag model"));
+
+    const std::string op1 = prm.get("vans model");
+    if (op1 == "modelA")
+      vans_model = Parameters::DragModel::modelA;
+    else if (op1 == "modelB")
+      vans_model = Parameters::DragModel::modelB;
+    else
+      throw(std::runtime_error("Invalid vans model"));
     prm.leave_subsection();
   }
 } // namespace Parameters

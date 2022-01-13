@@ -53,6 +53,12 @@ namespace Parameters
     dallavalle
   };
 
+  enum class VansModel
+  {
+    modelA,
+    modelB
+  };
+
 
   template <int dim>
   class VoidFraction
@@ -84,6 +90,7 @@ namespace Parameters
   {
     bool         grad_div;
     DragModel    drag_model;
+    VansModel    vans_model;
     bool         post_processing;
     unsigned int inlet_boundary_id;
     unsigned int outlet_boundary_id;

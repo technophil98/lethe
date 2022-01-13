@@ -583,15 +583,27 @@ GLSVANSSolver<dim>::setup_assemblers()
     }
 
   //  Fluid_Particle Interactions Assembler
-  this->assemblers.push_back(std::make_shared<GLSVansAssemblerFPI<dim>>());
+  this->assemblers.push_back(std::make_shared<GLSVansAssemblerFPI<dim>>(
+    this->cfd_dem_simulation_parameters.cfd_dem));
 
   // The core assembler should always be the last assembler to be called in the
   // stabilized formulation as to have all strong residual and jacobian stored.
   // Core assembler
-  this->assemblers.push_back(std::make_shared<GLSVansAssemblerCoreModelB<dim>>(
-    this->simulation_control,
-    this->cfd_dem_simulation_parameters.cfd_parameters.physical_properties,
-    this->cfd_dem_simulation_parameters.cfd_dem));
+  if (this->cfd_dem_simulation_parameters.cfd_dem.vans_model ==
+      Parameters::VansModel::modelA)
+    this->assemblers.push_back(
+      std::make_shared<GLSVansAssemblerCoreModelA<dim>>(
+        this->simulation_control,
+        this->cfd_dem_simulation_parameters.cfd_parameters.physical_properties,
+        this->cfd_dem_simulation_parameters.cfd_dem));
+
+  else if (this->cfd_dem_simulation_parameters.cfd_dem.vans_model ==
+           Parameters::VansModel::modelB)
+    this->assemblers.push_back(
+      std::make_shared<GLSVansAssemblerCoreModelB<dim>>(
+        this->simulation_control,
+        this->cfd_dem_simulation_parameters.cfd_parameters.physical_properties,
+        this->cfd_dem_simulation_parameters.cfd_dem));
 }
 
 template <int dim>

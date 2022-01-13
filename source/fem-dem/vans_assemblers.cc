@@ -1213,9 +1213,12 @@ GLSVansAssemblerFPI<dim>::assemble_matrix(
       // Calculate the strong residual for GLS stabilization
       strong_residual[q] += // Drag Force
         (beta_drag * (velocity - average_particles_velocity) +
-         undisturbed_flow_force) /**
-        void_fraction*/
-        ;
+         undisturbed_flow_force);
+
+      if (cfd_dem.vans_model == Parameters::VansModel::modelA)
+        {
+          strong_residual[q] = strong_residual[q] * void_fraction;
+        }
 
       // We loop over the column first to prevent recalculation
       // of the strong jacobian in the inner loop
@@ -1225,7 +1228,12 @@ GLSVansAssemblerFPI<dim>::assemble_matrix(
 
           strong_jacobian[q][j] +=
             // Drag Force
-            beta_drag * phi_u_j /** void_fraction*/;
+            beta_drag * phi_u_j;
+
+          if (cfd_dem.vans_model == Parameters::VansModel::modelA)
+            {
+              strong_jacobian[q][j] = strong_jacobian[q][j] * void_fraction;
+            }
         }
 
       for (unsigned int i = 0; i < n_dofs; ++i)
@@ -1237,7 +1245,12 @@ GLSVansAssemblerFPI<dim>::assemble_matrix(
               const auto &phi_u_j = scratch_data.phi_u[q][j];
 
               local_matrix(i, j) += // Drag Force
-                (beta_drag /** void_fraction*/) * phi_u_j * phi_u_i * JxW;
+                beta_drag * phi_u_j * phi_u_i * JxW;
+
+              if (cfd_dem.vans_model == Parameters::VansModel::modelA)
+                {
+                  local_matrix(i, j) = local_matrix(i, j) * void_fraction;
+                }
             }
         }
     }
@@ -1275,20 +1288,26 @@ GLSVansAssemblerFPI<dim>::assemble_rhs(
       // Calculate the strong residual for GLS stabilization
       strong_residual[q] += // Drag Force
         (beta_drag * (velocity - average_particles_velocity) +
-         undisturbed_flow_force) /**
-        void_fraction*/
-        ;
+         undisturbed_flow_force);
+
+      if (cfd_dem.vans_model == Parameters::VansModel::modelA)
+        {
+          strong_residual[q] = strong_residual[q] * void_fraction;
+        }
 
       // Assembly of the right-hand side
       for (unsigned int i = 0; i < n_dofs; ++i)
         {
           const auto phi_u_i = scratch_data.phi_u[q][i];
           // Drag Force
-          local_rhs(i) -=
-            ((beta_drag * (velocity - average_particles_velocity) +
-              undisturbed_flow_force) /**
-             void_fraction*/) *
-            phi_u_i * JxW;
+          local_rhs(i) -= (beta_drag * (velocity - average_particles_velocity) +
+                           undisturbed_flow_force) *
+                          phi_u_i * JxW;
+
+          if (cfd_dem.vans_model == Parameters::VansModel::modelA)
+            {
+              local_rhs(i) = local_rhs(i) * void_fraction;
+            }
         }
     }
 }

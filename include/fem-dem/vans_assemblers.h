@@ -451,7 +451,8 @@ template <int dim>
 class GLSVansAssemblerFPI : public NavierStokesAssemblerBase<dim>
 {
 public:
-  GLSVansAssemblerFPI()
+  GLSVansAssemblerFPI(Parameters::CFDDEM cfd_dem)
+    : cfd_dem(cfd_dem)
 
   {}
 
@@ -472,6 +473,8 @@ public:
   virtual void
   assemble_rhs(NavierStokesScratchData<dim> &        scratch_data,
                StabilizedMethodsTensorCopyData<dim> &copy_data) override;
+
+  Parameters::CFDDEM cfd_dem;
 };
 
 

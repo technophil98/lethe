@@ -597,8 +597,8 @@ GLSVANSSolver<dim>::setup_assemblers()
         this->cfd_dem_simulation_parameters.cfd_parameters.physical_properties,
         this->cfd_dem_simulation_parameters.cfd_dem));
 
-  else if (this->cfd_dem_simulation_parameters.cfd_dem.vans_model ==
-           Parameters::VansModel::modelB)
+  if (this->cfd_dem_simulation_parameters.cfd_dem.vans_model ==
+      Parameters::VansModel::modelB)
     this->assemblers.push_back(
       std::make_shared<GLSVansAssemblerCoreModelB<dim>>(
         this->simulation_control,

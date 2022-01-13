@@ -117,7 +117,7 @@ namespace Parameters
                       Patterns::Integer(),
                       "dem-cfd coupling frequency");
     prm.declare_entry("vans model",
-                      "modelA",
+                      "modelB",
                       Patterns::Selection("modelA|modelB"),
                       "The volume averaged Navier Stokes model to be solved.");
     prm.leave_subsection();

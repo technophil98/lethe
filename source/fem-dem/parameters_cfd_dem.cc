@@ -151,9 +151,9 @@ namespace Parameters
 
     const std::string op1 = prm.get("vans model");
     if (op1 == "modelA")
-      vans_model = Parameters::DragModel::modelA;
+      vans_model = Parameters::VansModel::modelA;
     else if (op1 == "modelB")
-      vans_model = Parameters::DragModel::modelB;
+      vans_model = Parameters::VansModel::modelB;
     else
       throw(std::runtime_error("Invalid vans model"));
     prm.leave_subsection();

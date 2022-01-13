@@ -55,19 +55,65 @@ public:
 
 
 /**
- * @brief Class that assembles the core of the Volume Averaged Navier-Stokes equations.
+ * @brief Class that assembles the core of Model B of the Volume Averaged Navier-Stokes equations.
  *
  * @tparam dim An integer that denotes the number of spatial dimensions
  *
  * @ingroup assemblers
  */
 template <int dim>
-class GLSVansAssemblerCore : public NavierStokesAssemblerBase<dim>
+class GLSVansAssemblerCoreModelB : public NavierStokesAssemblerBase<dim>
 {
 public:
-  GLSVansAssemblerCore(std::shared_ptr<SimulationControl> simulation_control,
-                       Parameters::PhysicalProperties     physical_properties,
-                       Parameters::CFDDEM                 cfd_dem)
+  GLSVansAssemblerCoreModelB(
+    std::shared_ptr<SimulationControl> simulation_control,
+    Parameters::PhysicalProperties     physical_properties,
+    Parameters::CFDDEM                 cfd_dem)
+    : simulation_control(simulation_control)
+    , physical_properties(physical_properties)
+    , cfd_dem(cfd_dem)
+  {}
+
+  /**
+   * @brief assemble_matrix Assembles the matrix
+   * @param scratch_data (see base class)
+   * @param copy_data (see base class)
+   */
+  virtual void
+  assemble_matrix(NavierStokesScratchData<dim> &        scratch_data,
+                  StabilizedMethodsTensorCopyData<dim> &copy_data) override;
+
+  /**
+   * @brief assemble_rhs Assembles the rhs
+   * @param scratch_data (see base class)Particles::ParticleHandler
+   * @param copy_data (see base class)
+   */
+  virtual void
+  assemble_rhs(NavierStokesScratchData<dim> &        scratch_data,
+               StabilizedMethodsTensorCopyData<dim> &copy_data) override;
+
+  const bool SUPG = true;
+
+  std::shared_ptr<SimulationControl> simulation_control;
+  Parameters::PhysicalProperties     physical_properties;
+  Parameters::CFDDEM                 cfd_dem;
+};
+
+/**
+ * @brief Class that assembles the core of Model A of the Volume Averaged Navier-Stokes equations.
+ *
+ * @tparam dim An integer that denotes the number of spatial dimensions
+ *
+ * @ingroup assemblers
+ */
+template <int dim>
+class GLSVansAssemblerCoreModelA : public NavierStokesAssemblerBase<dim>
+{
+public:
+  GLSVansAssemblerCoreModelA(
+    std::shared_ptr<SimulationControl> simulation_control,
+    Parameters::PhysicalProperties     physical_properties,
+    Parameters::CFDDEM                 cfd_dem)
     : simulation_control(simulation_control)
     , physical_properties(physical_properties)
     , cfd_dem(cfd_dem)
@@ -139,6 +185,51 @@ public:
                StabilizedMethodsTensorCopyData<dim> &copy_data) override;
 
   std::shared_ptr<SimulationControl> simulation_control;
+  Parameters::CFDDEM                 cfd_dem;
+};
+
+/**
+ * @brief Class that assembles the shock capturing scheme for the Volume Averaged Navier-Stokes equations.
+ *
+ * @tparam dim An integer that denotes the number of spatial dimensions
+ *
+ * @ingroup assemblers
+ */
+template <int dim>
+class GLSVansAssemblerShockCapturing : public NavierStokesAssemblerBase<dim>
+{
+public:
+  GLSVansAssemblerShockCapturing(
+    std::shared_ptr<SimulationControl> simulation_control,
+    Parameters::PhysicalProperties     physical_properties,
+    Parameters::CFDDEM                 cfd_dem)
+    : simulation_control(simulation_control)
+    , physical_properties(physical_properties)
+    , cfd_dem(cfd_dem)
+  {}
+
+  /**
+   * @brief assemble_matrix Assembles the matrix
+   * @param scratch_data (see base class)
+   * @param copy_data (see base class)
+   */
+  virtual void
+  assemble_matrix(NavierStokesScratchData<dim> &        scratch_data,
+                  StabilizedMethodsTensorCopyData<dim> &copy_data) override;
+
+  /**
+   * @brief assemble_rhs Assembles the rhs
+   * @param scratch_data (see base class)Particles::ParticleHandler
+   * @param copy_data (see base class)
+   */
+  virtual void
+  assemble_rhs(NavierStokesScratchData<dim> &        scratch_data,
+               StabilizedMethodsTensorCopyData<dim> &copy_data) override;
+
+  const bool SUPG = true;
+
+  std::shared_ptr<SimulationControl> simulation_control;
+  Parameters::PhysicalProperties     physical_properties;
   Parameters::CFDDEM                 cfd_dem;
 };
 

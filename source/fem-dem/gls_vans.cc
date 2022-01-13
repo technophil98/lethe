@@ -588,7 +588,7 @@ GLSVANSSolver<dim>::setup_assemblers()
   // The core assembler should always be the last assembler to be called in the
   // stabilized formulation as to have all strong residual and jacobian stored.
   // Core assembler
-  this->assemblers.push_back(std::make_shared<GLSVansAssemblerCore<dim>>(
+  this->assemblers.push_back(std::make_shared<GLSVansAssemblerCoreModelB<dim>>(
     this->simulation_control,
     this->cfd_dem_simulation_parameters.cfd_parameters.physical_properties,
     this->cfd_dem_simulation_parameters.cfd_dem));

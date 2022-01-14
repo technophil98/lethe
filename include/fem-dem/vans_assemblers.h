@@ -393,8 +393,10 @@ class GLSVansAssemblerPressureForce : public ParticleFluidAssemblerBase<dim>
 {
 public:
   GLSVansAssemblerPressureForce(
-    Parameters::PhysicalProperties physical_properties)
+    Parameters::PhysicalProperties physical_properties,
+    Parameters::CFDDEM             cfd_dem)
     : physical_properties(physical_properties)
+    , cfd_dem(cfd_dem)
   {}
 
   /**
@@ -407,6 +409,7 @@ public:
     NavierStokesScratchData<dim> &scratch_data) override;
 
   Parameters::PhysicalProperties physical_properties;
+  Parameters::CFDDEM             cfd_dem;
 };
 
 /**

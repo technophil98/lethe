@@ -565,8 +565,8 @@ GLSVANSSolver<dim>::setup_assemblers()
     // Pressure Force
     particle_fluid_assemblers.push_back(
       std::make_shared<GLSVansAssemblerPressureForce<dim>>(
-        this->cfd_dem_simulation_parameters.cfd_parameters
-          .physical_properties));
+        this->cfd_dem_simulation_parameters.cfd_parameters.physical_properties,
+        this->cfd_dem_simulation_parameters.cfd_dem));
 
   if (this->cfd_dem_simulation_parameters.cfd_dem.shear_force == true)
     // Shear Force

@@ -188,50 +188,6 @@ public:
   Parameters::CFDDEM                 cfd_dem;
 };
 
-/**
- * @brief Class that assembles the shock capturing scheme for the Volume Averaged Navier-Stokes equations.
- *
- * @tparam dim An integer that denotes the number of spatial dimensions
- *
- * @ingroup assemblers
- */
-template <int dim>
-class GLSVansAssemblerShockCapturing : public NavierStokesAssemblerBase<dim>
-{
-public:
-  GLSVansAssemblerShockCapturing(
-    std::shared_ptr<SimulationControl> simulation_control,
-    Parameters::PhysicalProperties     physical_properties,
-    Parameters::CFDDEM                 cfd_dem)
-    : simulation_control(simulation_control)
-    , physical_properties(physical_properties)
-    , cfd_dem(cfd_dem)
-  {}
-
-  /**
-   * @brief assemble_matrix Assembles the matrix
-   * @param scratch_data (see base class)
-   * @param copy_data (see base class)
-   */
-  virtual void
-  assemble_matrix(NavierStokesScratchData<dim> &        scratch_data,
-                  StabilizedMethodsTensorCopyData<dim> &copy_data) override;
-
-  /**
-   * @brief assemble_rhs Assembles the rhs
-   * @param scratch_data (see base class)Particles::ParticleHandler
-   * @param copy_data (see base class)
-   */
-  virtual void
-  assemble_rhs(NavierStokesScratchData<dim> &        scratch_data,
-               StabilizedMethodsTensorCopyData<dim> &copy_data) override;
-
-  const bool SUPG = true;
-
-  std::shared_ptr<SimulationControl> simulation_control;
-  Parameters::PhysicalProperties     physical_properties;
-  Parameters::CFDDEM                 cfd_dem;
-};
 
 /**
  * @brief Class that assembles the drag force using DiFelice model for the

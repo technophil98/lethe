@@ -1,12 +1,12 @@
-#include "solvers/postprocessing_cfd.h"
-
-#include <fem-dem/gls_vans.h>
-
 #include <deal.II/base/work_stream.h>
 
 #include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/numerics/vector_tools.h>
+
+#include <fem-dem/gls_vans.h>
+
+#include "solvers/postprocessing_cfd.h"
 
 
 // Constructor for class GLS_VANS
@@ -863,6 +863,8 @@ GLSVANSSolver<dim>::post_processing()
   std::vector<Tensor<2, dim>> present_velocity_gradients(n_q_points);
 
   double mass_source           = 0;
+  double max_local_mass_source = 0;
+  double local_mass_source     = 0;
   double fluid_volume          = 0;
   double bed_volume            = 0;
   double average_void_fraction = 0;
@@ -928,6 +930,8 @@ GLSVANSSolver<dim>::post_processing()
                   previous_void_fraction[2], p3_void_fraction_values);
             }
 
+          local_mass_source = 0;
+
           for (unsigned int q = 0; q < n_q_points; ++q)
             {
               // Calculate the divergence of the velocity
@@ -935,34 +939,37 @@ GLSVANSSolver<dim>::post_processing()
                 trace(present_velocity_gradients[q]);
 
               // Evaluation of global mass conservation
-              mass_source += (present_velocity_values[q] *
-                                present_void_fraction_gradients[q] +
-                              present_void_fraction_values[q] *
-                                present_velocity_divergence) *
-                             fe_values_void_fraction.JxW(q);
+              local_mass_source = (present_velocity_values[q] *
+                                     present_void_fraction_gradients[q] +
+                                   present_void_fraction_values[q] *
+                                     present_velocity_divergence) *
+                                  fe_values_void_fraction.JxW(q);
 
               if (scheme ==
                     Parameters::SimulationControl::TimeSteppingMethod::bdf1 ||
                   scheme == Parameters::SimulationControl::TimeSteppingMethod::
                               steady_bdf)
-                mass_source += (bdf_coefs[0] * present_void_fraction_values[q] +
-                                bdf_coefs[1] * p1_void_fraction_values[q]) *
-                               fe_values_void_fraction.JxW(q);
+                local_mass_source +=
+                  (bdf_coefs[0] * present_void_fraction_values[q] +
+                   bdf_coefs[1] * p1_void_fraction_values[q]) *
+                  fe_values_void_fraction.JxW(q);
 
               if (scheme ==
                   Parameters::SimulationControl::TimeSteppingMethod::bdf2)
-                mass_source += (bdf_coefs[0] * present_void_fraction_values[q] +
-                                bdf_coefs[1] * p1_void_fraction_values[q] +
-                                bdf_coefs[2] * p2_void_fraction_values[q]) *
-                               fe_values_void_fraction.JxW(q);
+                local_mass_source +=
+                  (bdf_coefs[0] * present_void_fraction_values[q] +
+                   bdf_coefs[1] * p1_void_fraction_values[q] +
+                   bdf_coefs[2] * p2_void_fraction_values[q]) *
+                  fe_values_void_fraction.JxW(q);
 
               if (scheme ==
                   Parameters::SimulationControl::TimeSteppingMethod::bdf3)
-                mass_source += (bdf_coefs[0] * present_void_fraction_values[q] +
-                                bdf_coefs[1] * p1_void_fraction_values[q] +
-                                bdf_coefs[2] * p2_void_fraction_values[q] +
-                                bdf_coefs[3] * p3_void_fraction_values[q]) *
-                               fe_values_void_fraction.JxW(q);
+                local_mass_source +=
+                  (bdf_coefs[0] * present_void_fraction_values[q] +
+                   bdf_coefs[1] * p1_void_fraction_values[q] +
+                   bdf_coefs[2] * p2_void_fraction_values[q] +
+                   bdf_coefs[3] * p3_void_fraction_values[q]) *
+                  fe_values_void_fraction.JxW(q);
 
               // Calculation of fluid and bed volumes in bed
               if (present_void_fraction_values[q] < 0.6)
@@ -972,7 +979,12 @@ GLSVANSSolver<dim>::post_processing()
 
                   bed_volume += fe_values_void_fraction.JxW(q);
                 }
+
+              mass_source += local_mass_source;
             }
+
+          max_local_mass_source =
+            std::max(max_local_mass_source, abs(local_mass_source));
         }
     }
 
@@ -998,6 +1010,8 @@ GLSVANSSolver<dim>::post_processing()
       .density;
 
   this->pcout << "Mass Source: " << mass_source << " s^-1" << std::endl;
+  this->pcout << "Max Local Mass Source: " << max_local_mass_source << " s^-1"
+              << std::endl;
   this->pcout << "Average Void Fraction in Bed: " << average_void_fraction
               << std::endl;
 }

@@ -9,3 +9,5 @@ Incompressible Flow
 
     2d-lid‐driven-cavity-flow/lid‐driven-cavity-flow
     2d-taylor-couette-flow/2d-taylor-couette-flow
+    2d-flow-around-cylinder/2d-flow-around-cylinder
+    2d-transient-around-ahmed-body/2d-transient-around-ahmed-body

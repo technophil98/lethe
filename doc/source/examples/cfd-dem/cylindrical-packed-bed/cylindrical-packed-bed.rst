@@ -2,7 +2,7 @@
 Cylindrical Packed Bed
 ==================================
 
-It is strongly recommended to visit `CFD-DEM parameters <../../../parameters/unresolved_cfd-dem/cfd-dem.html>`_ for more detailed information on the concepts and physical meaning of the parameters CFD-DEM.
+It is strongly recommended to visit `CFD-DEM parameters <../../../parameters/unresolved_cfd-dem/unresolved_cfd-dem.html>`_ for more detailed information on the concepts and physical meaning of the parameters CFD-DEM.
 
 Features
 ----------------------------------
@@ -292,7 +292,7 @@ Boundary conditions
     end
 
 
-The additional sections that define the VANS solver are the void fraction subsection and the CFD-DEM subsection. These subsections are described in detail in the `CFD-DEM parameters <../../../parameters/unresolved_cfd-dem/cfd-dem.html>`_ . Since we are calculating the void fraction using the packed bed of the DEM simulation, we set the mode to "dem". For this, we need to read the dem files which we already wrote using check-pointing. We therefore set the read dem to "true" and specify the prefix of the dem files to be read. In order to ensure that our void fraction projection is bounded, we choose an upper bound limit of 1. We decide not to lower bound the void fraction and thus attributed a value of 0 to the L2 lower bound parameter. We now choose a smoothing factor for the void fraction as to reduce discontinuity which can lead to oscillations in the velocity. The factor we choose is around the square of twice the particle's diameter. 
+The additional sections that define the VANS solver are the void fraction subsection and the CFD-DEM subsection. These subsections are described in detail in the `CFD-DEM parameters <../../../parameters/unresolved_cfd-dem/unresolved_cfd-dem.html>`_ . Since we are calculating the void fraction using the packed bed of the DEM simulation, we set the mode to "dem". For this, we need to read the dem files which we already wrote using check-pointing. We therefore set the read dem to "true" and specify the prefix of the dem files to be read. In order to ensure that our void fraction projection is bounded, we choose an upper bound limit of 1. We decide not to lower bound the void fraction and thus attributed a value of 0 to the L2 lower bound parameter. We now choose a smoothing factor for the void fraction as to reduce discontinuity which can lead to oscillations in the velocity. The factor we choose is around the square of twice the particle's diameter. 
 
 Void fraction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -373,6 +373,6 @@ The results are shown in the plots below. We visualise the velocity of the fluid
     :alt: velocity and void fraction distribution
     :align: center
     
-.. image:: images/packed_bed.png
+.. image:: images/packed_bed_p.png
     :alt: pressure drop in packed bed
     :align: center

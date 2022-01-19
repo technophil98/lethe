@@ -7,7 +7,8 @@ This subsection's purpose is defining the boundary conditions associated to mult
 Heat Transfer
 ^^^^^^^^^^^^^
 
-For heat transfer boundary conditions, the defaults parameters are:
+For heat transfer boundary conditions, the possible ``types`` are ``temperature`` (default) and ``convection``.
+The default parameters of each are shown: 
 
 .. code-block:: text
 
@@ -23,6 +24,7 @@ For heat transfer boundary conditions, the defaults parameters are:
             set Tinf	   	    = 0
         end
     end
+
 
 * ``number``: This is the number of boundary conditions of the problem. 
 .. warning::

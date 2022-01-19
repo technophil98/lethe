@@ -2,7 +2,7 @@
 Lethe
 #####
 
-test
+test2
 
 .. image:: ../../logo/logo_black.png
   :alt: Lethe

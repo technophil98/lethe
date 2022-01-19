@@ -2,6 +2,8 @@
 Lethe
 #####
 
+test
+
 .. image:: ../../logo/logo_black.png
   :alt: Lethe
   :align: center
